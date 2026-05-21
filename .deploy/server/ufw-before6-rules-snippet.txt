@@ -1,0 +1,6 @@
+# --------------------------------------------------------------------
+# bizzymod GeoIP block (IPv6) — spliced into /etc/ufw/before6.rules by
+# bootstrap.sh.
+# --------------------------------------------------------------------
+-A ufw6-before-input -m set --match-set geoblock6 src -p tcp -j DROP
+-A ufw6-before-input -m set --match-set geoblock6 src -p ipv6-icmp -j DROP

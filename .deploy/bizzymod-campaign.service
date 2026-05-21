@@ -1,0 +1,28 @@
+[Unit]
+Description=Bizzymod Campaign — Left 4 Dead 2 Dedicated Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=campaign
+Group=campaign
+WorkingDirectory=/home/campaign/Steam/steamapps/common/l4d2
+EnvironmentFile=-/home/campaign/.config/bizzymod-campaign.env
+ExecStart=/home/campaign/srcds-launch.sh
+Restart=on-failure
+RestartSec=5s
+KillMode=mixed
+KillSignal=SIGINT
+TimeoutStopSec=15s
+LimitNOFILE=65536
+
+# Sandboxing — relaxed because srcds_run wants to read/write a lot under its install dir.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/home/campaign
+
+[Install]
+WantedBy=multi-user.target

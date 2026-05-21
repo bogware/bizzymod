@@ -1,0 +1,18 @@
+[Unit]
+Description=Restore bizzymod GeoIP ipsets at boot
+DefaultDependencies=no
+Before=netfilter-persistent.service network-pre.target ufw.service
+Wants=network-pre.target
+ConditionFileNotEmpty=/etc/iptables/ipsets.save
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Create the sets first so they always exist (even if save file is partial),
+# then restore on top.
+ExecStartPre=/usr/sbin/ipset create -exist geoblock  hash:net family inet  hashsize 65536 maxelem 524288
+ExecStartPre=/usr/sbin/ipset create -exist geoblock6 hash:net family inet6 hashsize 16384 maxelem 131072
+ExecStart=/bin/sh -c '/usr/sbin/ipset restore -! < /etc/iptables/ipsets.save'
+
+[Install]
+WantedBy=multi-user.target

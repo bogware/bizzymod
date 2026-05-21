@@ -1,0 +1,59 @@
+# /etc/fail2ban/jail.local
+# Installed by .deploy/bootstrap.sh. Edit and run: systemctl restart fail2ban
+#
+# Aggressive defaults appropriate for a public game-server host. The "recidive"
+# jail catches repeat offenders across all other jails and bans them for a week.
+
+[DEFAULT]
+# Where bans come from / go to.
+backend  = systemd
+banaction = ufw
+banaction_allports = ufw
+# Don't ban these. The %(__BANLIST__)s anchor is *not* recursive; this is a
+# straight list — append your own admin IPs if you have static ones.
+ignoreself = true
+ignoreip = 127.0.0.1/8 ::1
+
+# Default ban policy.
+findtime  = 10m
+bantime   = 1h
+maxretry  = 3
+
+# Increasing ban time — each subsequent ban for an IP doubles its ban length.
+bantime.increment  = true
+bantime.rndtime    = 5m
+bantime.maxtime    = 7d
+bantime.factor     = 2
+bantime.formula    = ban.Time * banFactor**(1 + ban.Count)
+
+# Don't email by default; configure if you want notifications.
+destemail = root@localhost
+sender    = fail2ban@localhost
+mta       = sendmail
+action    = %(action_)s
+
+# ----------------------------------------------------------------------------
+
+[sshd]
+enabled  = true
+filter   = sshd
+mode     = aggressive
+# Port is set at install time by bootstrap.sh (defaults to "ssh" alias).
+port     = ssh
+logpath  = %(sshd_log)s
+maxretry = 3
+findtime = 5m
+bantime  = 1h
+
+# Catch credential stuffing fast — 3 failures in 5min => 1h ban (then doubles).
+
+# ----------------------------------------------------------------------------
+
+[recidive]
+enabled   = true
+filter    = recidive
+logpath   = /var/log/fail2ban.log
+banaction = %(banaction_allports)s
+maxretry  = 3
+findtime  = 1d
+bantime   = 1w

@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# /usr/local/sbin/bizzymod-geoip-update
+# Refresh the GeoIP ipset blocklist from ipdeny.com.
+#
+# Reads /etc/bizzymod/geoblock.conf for the list of country codes, downloads
+# their aggregated CIDR zones, and atomically swaps the ipset `geoblock` (v4)
+# and `geoblock6` (v6).
+#
+# Idempotent. Runs from a systemd timer weekly; safe to run by hand any time.
+
+set -euo pipefail
+
+CONF=/etc/bizzymod/geoblock.conf
+WORK="$(mktemp -d)"
+trap 'rm -rf "${WORK}"' EXIT
+
+# We swap into these via `ipset swap` — names must exist already (created by
+# bizzymod-geoip-restore.service on boot, or by bootstrap.sh on first install).
+SET_V4=geoblock
+SET_V6=geoblock6
+TMP_V4="geoblock-new"
+TMP_V6="geoblock6-new"
+
+UA="bizzymod-geoip-update/1.0 (+contact your admin)"
+BASE="https://cdn.ipdeny.com/ipblocks/data/aggregated"
+BASE6="https://cdn.ipdeny.com/ipv6/ipaddresses/aggregated"
+
+if [[ ! -f "${CONF}" ]]; then
+    echo "bizzymod-geoip-update: ${CONF} missing; nothing to do." >&2
+    exit 1
+fi
+
+# Read country codes, stripping comments and whitespace.
+mapfile -t CCS < <(grep -vE '^\s*(#|$)' "${CONF}" | awk '{print tolower($1)}' | sort -u)
+
+if [[ "${#CCS[@]}" -eq 0 ]]; then
+    echo "bizzymod-geoip-update: no country codes in ${CONF}; clearing blocklist."
+fi
+
+echo "bizzymod-geoip-update: refreshing ${#CCS[@]} country zones: ${CCS[*]}"
+
+ipset create -exist "${TMP_V4}" hash:net family inet  hashsize 65536 maxelem 524288
+ipset create -exist "${TMP_V6}" hash:net family inet6 hashsize 16384 maxelem 131072
+ipset flush "${TMP_V4}"
+ipset flush "${TMP_V6}"
+
+# Build a restore script for each family — bulk add is much faster than one-at-a-time.
+v4_restore="${WORK}/v4.restore"
+v6_restore="${WORK}/v6.restore"
+: > "${v4_restore}"
+: > "${v6_restore}"
+
+for cc in "${CCS[@]}"; do
+    [[ "${cc}" =~ ^[a-z]{2}$ ]] || { echo "  skip: invalid country code '${cc}'"; continue; }
+
+    # IPv4
+    if curl -fsSL -A "${UA}" -o "${WORK}/${cc}.v4" "${BASE}/${cc}-aggregated.zone"; then
+        # shellcheck disable=SC2002
+        wc -l < "${WORK}/${cc}.v4" | xargs -I{} echo "  ${cc} v4: {} ranges"
+        awk -v set="${TMP_V4}" '/^[0-9]/ {print "add " set " " $1 " -exist"}' "${WORK}/${cc}.v4" >> "${v4_restore}"
+    else
+        echo "  warn: failed to fetch ${cc} v4"
+    fi
+
+    # IPv6
+    if curl -fsSL -A "${UA}" -o "${WORK}/${cc}.v6" "${BASE6}/${cc}-aggregated.zone"; then
+        wc -l < "${WORK}/${cc}.v6" | xargs -I{} echo "  ${cc} v6: {} ranges"
+        awk -v set="${TMP_V6}" '/:/ {print "add " set " " $1 " -exist"}' "${WORK}/${cc}.v6" >> "${v6_restore}"
+    else
+        echo "  warn: failed to fetch ${cc} v6 (some countries have no v6 zone — ok)"
+    fi
+done
+
+ipset restore -! < "${v4_restore}"
+ipset restore -! < "${v6_restore}"
+
+# Atomic swap into live sets.
+ipset create -exist "${SET_V4}" hash:net family inet  hashsize 65536 maxelem 524288
+ipset create -exist "${SET_V6}" hash:net family inet6 hashsize 16384 maxelem 131072
+ipset swap "${TMP_V4}" "${SET_V4}"
+ipset swap "${TMP_V6}" "${SET_V6}"
+ipset destroy "${TMP_V4}"
+ipset destroy "${TMP_V6}"
+
+# Persist for boot.
+mkdir -p /etc/iptables
+ipset save > /etc/iptables/ipsets.save
+
+V4N="$(ipset list "${SET_V4}" | awk '/Number of entries/ {print $4}')"
+V6N="$(ipset list "${SET_V6}" | awk '/Number of entries/ {print $4}')"
+echo "bizzymod-geoip-update: loaded ${V4N} v4 ranges, ${V6N} v6 ranges."

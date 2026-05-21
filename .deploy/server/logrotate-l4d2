@@ -1,0 +1,36 @@
+# /etc/logrotate.d/bizzymod-l4d2
+# Rotate L4D2 logs so the box doesn't fill its disk.
+# The paths are patched in by bootstrap.sh based on $SRCDS_USER + $INSTALL_DIR.
+
+#INSTALL_DIR#/left4dead2/logs/*.log {
+    weekly
+    rotate 8
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+    su #SRCDS_USER# #SRCDS_USER#
+}
+
+#INSTALL_DIR#/left4dead2/addons/sourcemod/logs/*.log {
+    weekly
+    rotate 8
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+    su #SRCDS_USER# #SRCDS_USER#
+}
+
+#INSTALL_DIR#/left4dead2/addons/sourcemod/logs/errors_*.log {
+    weekly
+    rotate 4
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+    su #SRCDS_USER# #SRCDS_USER#
+}

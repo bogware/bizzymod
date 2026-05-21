@@ -1,0 +1,24 @@
+// /etc/apt/apt.conf.d/50unattended-upgrades.d/50bizzymod
+// Installed by .deploy/bootstrap.sh. Installs security updates automatically
+// but does NOT auto-reboot — a game server reboot drops players, so we apply
+// reboots manually during maintenance windows.
+
+Unattended-Upgrade::Allowed-Origins {
+    "${distro_id}:${distro_codename}-security";
+    "${distro_id}ESMApps:${distro_codename}-apps-security";
+    "${distro_id}ESM:${distro_codename}-infra-security";
+};
+
+Unattended-Upgrade::Package-Blacklist { };
+Unattended-Upgrade::DevRelease "auto";
+
+Unattended-Upgrade::Automatic-Reboot "false";
+Unattended-Upgrade::Automatic-Reboot-WithUsers "false";
+
+// Email on failure if you have an MTA configured. Harmless otherwise.
+Unattended-Upgrade::Mail "root";
+Unattended-Upgrade::MailReport "on-change";
+
+// Remove unused dependencies as part of the cycle.
+Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
+Unattended-Upgrade::Remove-Unused-Dependencies "true";

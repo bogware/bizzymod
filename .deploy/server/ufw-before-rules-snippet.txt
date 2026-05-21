@@ -1,0 +1,17 @@
+# --------------------------------------------------------------------
+# bizzymod GeoIP block — spliced into /etc/ufw/before.rules by bootstrap.sh
+# Placed near the top of the *filter rules so it short-circuits ufw's own
+# chain. DROPs traffic from the `geoblock` ipset on TCP (mostly SSH + admin
+# services). UDP 27015 (game) intentionally NOT blocked — legitimate players
+# from anywhere can still connect (set GEOBLOCK_GAME_PORT=1 in bootstrap to
+# extend the block to UDP).
+#
+# iptables-restore does NOT support backslash line continuation — each rule
+# MUST stay on a single line.
+# --------------------------------------------------------------------
+-A ufw-before-input -m set --match-set geoblock src -p tcp -j DROP
+-A ufw-before-input -m set --match-set geoblock src -p icmp -j DROP
+
+# Soften A2S query floods on the game port. Tune carefully — too aggressive
+# and legitimate browsers see your server flicker in the lobby list.
+-A ufw-before-input -p udp --dport 27015 -m hashlimit --hashlimit-name srcds-query --hashlimit-mode srcip --hashlimit-above 60/sec --hashlimit-burst 80 -j DROP

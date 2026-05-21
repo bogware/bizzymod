@@ -1,0 +1,12 @@
+[Unit]
+Description=Weekly refresh of bizzymod GeoIP ipset blocklist
+
+[Timer]
+# Sunday 04:17 local. RandomizedDelay spreads load if you ever run many hosts.
+OnCalendar=Sun *-*-* 04:17:00
+RandomizedDelaySec=30m
+Persistent=true
+Unit=bizzymod-geoip-update.service
+
+[Install]
+WantedBy=timers.target

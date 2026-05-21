@@ -1,0 +1,202 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip_steam_update:
+        description: "Skip steamcmd app_update on the server (faster redeploys when L4D2 hasn't changed)"
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**/*.md"
+      - ".github/**"
+      - ".cicd/**"
+      - "guide/**"
+
+# Only one deploy at a time. Cancel any in-flight deploy when a new one starts.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  ZONEMOD_RELEASE_TAG: v1.0.0   # SirPlease L4D2-Competitive-Rework release to lay down first
+  L4D2_APPID: "222860"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+
+    steps:
+      # ----------------------------------------------------------------------
+      - name: Checkout this repo (includes vendored SourceMod compiler tree)
+        uses: actions/checkout@v4
+        with:
+          lfs: false
+
+      - name: Checkout SirPlease/L4D2-Competitive-Rework (for SourcePawn deps)
+        uses: actions/checkout@v4
+        with:
+          repository: SirPlease/L4D2-Competitive-Rework
+          ref: ${{ env.ZONEMOD_RELEASE_TAG }}
+          path: zonemod
+
+      # ----------------------------------------------------------------------
+      - name: Install build & deploy dependencies (wine, sshpass, rsync)
+        run: |
+          sudo dpkg --add-architecture i386
+          sudo apt-get update -y
+          sudo apt-get install -y --no-install-recommends \
+              wine wine32:i386 wine64 \
+              sshpass rsync openssh-client
+          wine --version
+
+      # ----------------------------------------------------------------------
+      - name: Compile Bizzymod plugins (spcomp.exe under wine)
+        run: |
+          chmod +x .deploy/build-plugins.sh
+          .deploy/build-plugins.sh
+
+      # ----------------------------------------------------------------------
+      - name: Download SirPlease zonemod Linux release tarball
+        run: |
+          set -euo pipefail
+          url="https://github.com/SirPlease/L4D2-Competitive-Rework/releases/download/${ZONEMOD_RELEASE_TAG}/L4D2-Competitive-Rework-${ZONEMOD_RELEASE_TAG}-linux.tar.gz"
+          echo "Downloading ${url}"
+          mkdir -p _zonemod_overlay
+          curl -fSL "${url}" | tar -xz -C _zonemod_overlay
+          echo "--- top of zonemod overlay ---"
+          ls -la _zonemod_overlay | head -20
+
+      # ----------------------------------------------------------------------
+      - name: Token-replace #{...}# in **/*.cfg
+        env:
+          SERVER_NAME:        ${{ vars.SERVER_NAME }}
+          HOST_BANNER:        ${{ vars.HOST_BANNER }}
+          HOST_MOTD:          ${{ vars.HOST_MOTD }}
+          L4DSTATS_DB:        ${{ vars.L4DSTATS_DB }}
+          L4DSTATS_DB_IP:     ${{ vars.L4DSTATS_DB_IP }}
+          L4DSTATS_PORT:      ${{ vars.L4DSTATS_PORT }}
+          L4DSTATS_USER:      ${{ vars.L4DSTATS_USER }}
+          L4DSTATS_PASS:      ${{ secrets.L4DSTATS_PASS }}
+          SOURCEBANS_DB:      ${{ vars.SOURCEBANS_DB }}
+          SOURCEBANS_DB_IP:   ${{ vars.SOURCEBANS_DB_IP }}
+          SOURCEBANS_PORT:    ${{ vars.SOURCEBANS_PORT }}
+          SOURCEBANS_USER:    ${{ vars.SOURCEBANS_USER }}
+          SOURCEBANS_PASS:    ${{ secrets.SOURCEBANS_PASS }}
+          RCON_PASS:          ${{ secrets.RCON_PASS }}
+          SRCDS_USER:         ${{ vars.SRCDS_USER }}
+          REMOTE_TARGET_FOLDER: ${{ vars.REMOTE_TARGET_FOLDER }}
+          INIT_PATH:          ${{ vars.INIT_PATH }}
+        run: |
+          chmod +x .deploy/replace-tokens.sh
+          .deploy/replace-tokens.sh .
+
+      # ----------------------------------------------------------------------
+      - name: Prepare SSH (password auth via sshpass)
+        env:
+          SSH_HOST:     ${{ secrets.SSH_HOST }}
+          SSH_PORT:     ${{ vars.SSH_PORT || '22' }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          # Trust the host's key on first contact, then pin it.
+          ssh-keyscan -p "${SSH_PORT}" -H "${SSH_HOST}" >> ~/.ssh/known_hosts 2>/dev/null
+          chmod 600 ~/.ssh/known_hosts
+
+      # ----------------------------------------------------------------------
+      - name: Stop server, sync logs, refresh L4D2, deploy overlay, restart
+        env:
+          SSHPASS:              ${{ secrets.SSH_PASSWORD }}
+          SUDO_PASS:            ${{ secrets.SUDO_PASSWORD }}
+          SSH_HOST:             ${{ secrets.SSH_HOST }}
+          SSH_USER:             ${{ secrets.SSH_USER }}
+          SSH_PORT:             ${{ vars.SSH_PORT || '22' }}
+          REMOTE_TARGET_FOLDER: ${{ vars.REMOTE_TARGET_FOLDER }}
+          SRCDS_USER:           ${{ vars.SRCDS_USER }}
+          L4D2_APPID:           ${{ env.L4D2_APPID }}
+          SKIP_STEAM_UPDATE:    ${{ inputs.skip_steam_update }}
+        run: |
+          set -euo pipefail
+
+          SSH="sshpass -e ssh -o StrictHostKeyChecking=yes -p ${SSH_PORT} ${SSH_USER}@${SSH_HOST}"
+          RSYNC_RSH="sshpass -e ssh -o StrictHostKeyChecking=yes -p ${SSH_PORT}"
+
+          remote() {
+              # Stream a sudo'd command using SUDO_PASS over stdin; safer than -A.
+              SSHPASS="${SUDO_PASS}" sshpass -e ssh -o StrictHostKeyChecking=yes -p "${SSH_PORT}" "${SSH_USER}@${SSH_HOST}" \
+                  "sudo -S -p '' bash -lc \"$1\""
+          }
+
+          plain_remote() {
+              SSHPASS="${SSHPASS}" sshpass -e ssh -o StrictHostKeyChecking=yes -p "${SSH_PORT}" "${SSH_USER}@${SSH_HOST}" "$1"
+          }
+
+          echo "::group::Stop bizzymod-campaign service"
+          remote "systemctl stop bizzymod-campaign.service || true"
+          echo "::endgroup::"
+
+          echo "::group::Copy logs to user home (best-effort)"
+          remote "
+              install -d -o ${SRCDS_USER} -g ${SRCDS_USER} /home/${SRCDS_USER}/bizzylogs /home/${SRCDS_USER}/bizzysourcemodlogs
+              [ -d '${REMOTE_TARGET_FOLDER}/left4dead2/logs' ] && cp -a '${REMOTE_TARGET_FOLDER}/left4dead2/logs/.' /home/${SRCDS_USER}/bizzylogs/ || true
+              [ -d '${REMOTE_TARGET_FOLDER}/left4dead2/addons/sourcemod/logs' ] && cp -a '${REMOTE_TARGET_FOLDER}/left4dead2/addons/sourcemod/logs/.' /home/${SRCDS_USER}/bizzysourcemodlogs/ || true
+              chown -R ${SRCDS_USER}:${SRCDS_USER} /home/${SRCDS_USER}/bizzylogs /home/${SRCDS_USER}/bizzysourcemodlogs || true
+          "
+          echo "::endgroup::"
+
+          if [[ "${SKIP_STEAM_UPDATE}" != "true" ]]; then
+              echo "::group::steamcmd app_update ${L4D2_APPID}"
+              # steamcmd runs as the srcds user, no sudo needed.
+              SSHPASS="${SSHPASS}" sshpass -e ssh -o StrictHostKeyChecking=yes -p "${SSH_PORT}" "${SSH_USER}@${SSH_HOST}" "
+                  sudo -S -p '' -u ${SRCDS_USER} -H bash -lc \"/home/${SRCDS_USER}/steamcmd/steamcmd.sh +force_install_dir ${REMOTE_TARGET_FOLDER} +login anonymous +app_update ${L4D2_APPID} validate +quit\"
+              " <<< "${SUDO_PASS}"
+              echo "::endgroup::"
+          fi
+
+          echo "::group::Rsync zonemod overlay (laid down first)"
+          # The zonemod release tarball top-level is the left4dead2 overlay itself.
+          # Confirm the structure: if there's a left4dead2/ inside, sync that; otherwise sync as-is.
+          if [[ -d _zonemod_overlay/left4dead2 ]]; then
+              ZONE_SRC="_zonemod_overlay/left4dead2/"
+          else
+              ZONE_SRC="_zonemod_overlay/"
+          fi
+          SSHPASS="${SSHPASS}" rsync -az --delete-after \
+              --exclude '.git/' --exclude '.github/' --exclude '.cicd/' \
+              -e "sshpass -e ssh -o StrictHostKeyChecking=yes -p ${SSH_PORT}" \
+              "${ZONE_SRC}" "${SSH_USER}@${SSH_HOST}:/tmp/bizzymod-stage-zonemod/"
+          remote "
+              install -d ${REMOTE_TARGET_FOLDER}/left4dead2
+              rsync -a /tmp/bizzymod-stage-zonemod/ ${REMOTE_TARGET_FOLDER}/left4dead2/
+              rm -rf /tmp/bizzymod-stage-zonemod
+              chown -R ${SRCDS_USER}:${SRCDS_USER} ${REMOTE_TARGET_FOLDER}
+          "
+          echo "::endgroup::"
+
+          echo "::group::Rsync Bizzymod Campaign overlay (this repo wins on conflict)"
+          # Stage to /tmp so we don't need sudo over rsync; then move into place server-side.
+          SSHPASS="${SSHPASS}" rsync -az \
+              --exclude '.git/' --exclude '.github/' --exclude '.cicd/' --exclude '.deploy/' \
+              --exclude 'SourceMod/' --exclude 'zonemod/' --exclude '_zonemod_overlay/' \
+              --exclude 'CLAUDE.md' --exclude 'DEPLOY.md' --exclude 'guide/' \
+              --exclude '*.md' \
+              -e "sshpass -e ssh -o StrictHostKeyChecking=yes -p ${SSH_PORT}" \
+              ./ "${SSH_USER}@${SSH_HOST}:/tmp/bizzymod-stage-campaign/"
+          remote "
+              rsync -a /tmp/bizzymod-stage-campaign/ ${REMOTE_TARGET_FOLDER}/left4dead2/
+              rm -rf /tmp/bizzymod-stage-campaign
+              chown -R ${SRCDS_USER}:${SRCDS_USER} ${REMOTE_TARGET_FOLDER}
+              find ${REMOTE_TARGET_FOLDER}/left4dead2 -type d -exec chmod 755 {} +
+              find ${REMOTE_TARGET_FOLDER}/left4dead2 -type f -exec chmod 644 {} +
+              chmod +x ${REMOTE_TARGET_FOLDER}/srcds_run ${REMOTE_TARGET_FOLDER}/srcds_linux 2>/dev/null || true
+          "
+          echo "::endgroup::"
+
+          echo "::group::Start bizzymod-campaign service"
+          remote "systemctl start bizzymod-campaign.service"
+          remote "systemctl is-active --quiet bizzymod-campaign.service && systemctl status --no-pager -l bizzymod-campaign.service | head -25"
+          echo "::endgroup::"
