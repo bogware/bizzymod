@@ -89,5 +89,14 @@ done
 
 echo "build-plugins: ${built} built, ${failed} failed."
 if [[ "${failed}" -gt 0 ]]; then
+    echo "build-plugins: failed plugin(s) keep their existing .smx in the repo as fallback."
+    echo "build-plugins: set BUILD_STRICT=1 to make any compile failure fatal."
+    if [[ "${BUILD_STRICT:-0}" == "1" ]]; then
+        exit 1
+    fi
+fi
+# Sanity: refuse to ship if NOTHING built — that's a real toolchain failure.
+if [[ "${built}" -eq 0 && "${failed}" -gt 0 ]]; then
+    echo "build-plugins: 0 successful builds — toolchain is broken; aborting."
     exit 1
 fi
