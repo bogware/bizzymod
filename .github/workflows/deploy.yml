@@ -33,12 +33,12 @@ jobs:
     steps:
       # ----------------------------------------------------------------------
       - name: Checkout this repo (includes vendored SourceMod compiler tree)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           lfs: false
 
       - name: Checkout SirPlease/L4D2-Competitive-Rework (for SourcePawn deps)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: SirPlease/L4D2-Competitive-Rework
           ref: ${{ env.ZONEMOD_RELEASE_TAG }}
@@ -113,10 +113,11 @@ jobs:
           SSHPASS:              ${{ secrets.SSH_PASSWORD }}
           SUDO_PASS:            ${{ secrets.SUDO_PASSWORD }}
           SSH_HOST:             ${{ secrets.SSH_HOST }}
-          SSH_USER:             ${{ secrets.SSH_USER }}
+          SSH_USER:             ${{ vars.SSH_USER }}
           SSH_PORT:             ${{ vars.SSH_PORT || '22' }}
           REMOTE_TARGET_FOLDER: ${{ vars.REMOTE_TARGET_FOLDER }}
           SRCDS_USER:           ${{ vars.SRCDS_USER }}
+          INIT_PATH:            ${{ vars.INIT_PATH }}
           L4D2_APPID:           ${{ env.L4D2_APPID }}
           SKIP_STEAM_UPDATE:    ${{ inputs.skip_steam_update }}
         run: |
@@ -126,17 +127,19 @@ jobs:
           RSYNC_RSH="sshpass -e ssh -o StrictHostKeyChecking=yes -p ${SSH_PORT}"
 
           remote() {
-              # Stream a sudo'd command using SUDO_PASS over stdin; safer than -A.
-              SSHPASS="${SUDO_PASS}" sshpass -e ssh -o StrictHostKeyChecking=yes -p "${SSH_PORT}" "${SSH_USER}@${SSH_HOST}" \
-                  "sudo -S -p '' bash -lc \"$1\""
+              # SSH auth uses SSH_PASSWORD (SSHPASS env). The sudo password is
+              # fed to remote 'sudo -S -p ""' via stdin heredoc, so it never
+              # appears on the command line / process list.
+              SSHPASS="${SSHPASS}" sshpass -e ssh -o StrictHostKeyChecking=yes -p "${SSH_PORT}" "${SSH_USER}@${SSH_HOST}" \
+                  "sudo -S -p '' bash -lc \"$1\"" <<< "${SUDO_PASS}"
           }
 
           plain_remote() {
               SSHPASS="${SSHPASS}" sshpass -e ssh -o StrictHostKeyChecking=yes -p "${SSH_PORT}" "${SSH_USER}@${SSH_HOST}" "$1"
           }
 
-          echo "::group::Stop bizzymod-campaign service"
-          remote "systemctl stop bizzymod-campaign.service || true"
+          echo "::group::Stop server (${INIT_PATH} stop)"
+          remote "${INIT_PATH} stop || true"
           echo "::endgroup::"
 
           echo "::group::Copy logs to user home (best-effort)"
@@ -196,7 +199,9 @@ jobs:
           "
           echo "::endgroup::"
 
-          echo "::group::Start bizzymod-campaign service"
-          remote "systemctl start bizzymod-campaign.service"
-          remote "systemctl is-active --quiet bizzymod-campaign.service && systemctl status --no-pager -l bizzymod-campaign.service | head -25"
+          echo "::group::Start server (${INIT_PATH} start)"
+          remote "${INIT_PATH} start"
+          # Give srcds a few seconds to fork + bind, then confirm it's alive.
+          sleep 5
+          remote "pgrep -af srcds_run | head -5 || (echo 'srcds_run not running'; exit 1)"
           echo "::endgroup::"
