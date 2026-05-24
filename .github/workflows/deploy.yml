@@ -170,6 +170,8 @@ jobs:
           fi
           SSHPASS="${SSHPASS}" rsync -az --delete-after \
               --exclude '.git/' --exclude '.github/' --exclude '.cicd/' \
+              --exclude 'addons/sourcemod/plugins/match_vote.smx' \
+              --exclude 'addons/sourcemod/plugins/confoglcompmod.smx' \
               -e "sshpass -e ssh -o StrictHostKeyChecking=yes -p ${SSH_PORT}" \
               "${ZONE_SRC}" "${SSH_USER}@${SSH_HOST}:/tmp/bizzymod-stage-zonemod/"
           remote "
@@ -177,6 +179,26 @@ jobs:
               rsync -a /tmp/bizzymod-stage-zonemod/ ${REMOTE_TARGET_FOLDER}/left4dead2/
               rm -rf /tmp/bizzymod-stage-zonemod
               chown -R ${SRCDS_USER}:${SRCDS_USER} ${REMOTE_TARGET_FOLDER}
+          "
+          echo "::endgroup::"
+
+          echo "::group::Quarantine matchmode framework on Campaign server"
+          # We do NOT want matchmode behavior on the Campaign server. Move any
+          # existing match_vote.smx / confoglcompmod.smx into plugins/disabled/
+          # so SourceMod's plugin loader ignores them entirely. Also delete the
+          # match_vote persistence file if present (it remembers the last
+          # voted mode and re-applies it at boot).
+          remote "
+              PLUG=${REMOTE_TARGET_FOLDER}/left4dead2/addons/sourcemod/plugins
+              install -d \\\$PLUG/disabled
+              for f in match_vote.smx confoglcompmod.smx; do
+                  if [ -f \\\$PLUG/\\\$f ]; then
+                      mv -f \\\$PLUG/\\\$f \\\$PLUG/disabled/\\\$f
+                      echo \\\"Quarantined: \\\$f\\\"
+                  fi
+              done
+              rm -f ${REMOTE_TARGET_FOLDER}/left4dead2/addons/sourcemod/data/match_vote.txt
+              chown -R ${SRCDS_USER}:${SRCDS_USER} ${REMOTE_TARGET_FOLDER}/left4dead2/addons/sourcemod
           "
           echo "::endgroup::"
 
