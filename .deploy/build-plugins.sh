@@ -76,7 +76,10 @@ for smx in "${BIZZY_PLUGINS}"/*.smx; do
     fi
 
     echo "  build: ${base}.sp"
-    if ! spcomp "${base}.sp" >/tmp/spcomp.${base}.log 2>&1; then
+    # spcomp does NOT implicitly search ./include/ — only the dirs from -i flags.
+    # The proxy from setup-sp already injects -i<cached SM include>; we add our
+    # merged include/ (bizzymod + zonemod overlay) explicitly.
+    if ! spcomp "${base}.sp" -i"${WORK}/include" >/tmp/spcomp.${base}.log 2>&1; then
         echo "    FAILED (last 30 lines):"
         tail -n 30 "/tmp/spcomp.${base}.log" | sed 's/^/      /'
         failed=$((failed + 1))

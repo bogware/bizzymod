@@ -2317,7 +2317,7 @@ Action TimerAutoGrab(Handle timer)
 // ====================================================================================================
 //					VARIOUS HELPERS
 // ====================================================================================================
-void FireEventsFootlocker(int client, int target, char[] sItem)
+void FireEventsFootlocker(int client, int target, const char[] sItem)
 {
 	Event hEvent = CreateEvent("item_pickup", true);
 	if( hEvent != null )
