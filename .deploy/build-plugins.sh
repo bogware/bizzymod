@@ -23,7 +23,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BIZZY_PLUGINS="${ROOT}/addons/sourcemod/plugins/bizzymod"
+BIZZY_PLUGINS="${ROOT}/addons/sourcemod/plugins/optional/bizzymod"
 BIZZY_SCRIPTING="${ROOT}/addons/sourcemod/scripting"
 ZONE_SCRIPTING="${ROOT}/zonemod/addons/sourcemod/scripting"
 
