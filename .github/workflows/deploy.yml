@@ -185,15 +185,18 @@ jobs:
           "
           echo "::endgroup::"
 
-          echo "::group::Full quarantine — move ALL plugins/ root .smx into plugins/disabled/"
-          # Plan B: SourceMod auto-loads everything in plugins/ root. We want
-          # NOTHING to auto-load. Move every .smx out of plugins/ root into
-          # plugins/disabled/. campaign.cfg explicitly loads what we want via
-          # 'sm plugins load disabled/<name>.smx'. Subdirectories
-          # (fixes/, optional/, anticheat/, bizzymod/) already don't auto-load.
+          echo "::group::Full plugin quarantine + nuke stale plugin dirs"
+          # SourceMod auto-loads every .smx in plugins/ AND every subdirectory
+          # of plugins/ EXCEPT folders literally named 'disabled' or 'optional'
+          # (verified against SourceMod PluginSys.cpp source).
           #
-          # Also nuke matchmode persistence so confoglcompmod can't replay a
-          # stale "last voted mode" at boot.
+          # Therefore we must:
+          #  1. Quarantine all .smx from plugins/ root into plugins/disabled/.
+          #  2. Wipe legacy plugins/bizzymod/ if it exists from a prior deploy
+          #     (we moved its contents to plugins/optional/bizzymod/; stale
+          #     files from older deploys would still auto-load otherwise).
+          #  3. Nuke matchmode persistence (match_vote.txt) so confoglcompmod
+          #     can't replay a stale 'last voted mode'.
           remote "
               PLUG=${REMOTE_TARGET_FOLDER}/left4dead2/addons/sourcemod/plugins
               install -d \\\$PLUG/disabled
@@ -204,6 +207,13 @@ jobs:
                   moved=\\\$((moved + 1))
               done
               echo \\\"Quarantined \\\$moved plugin(s) from plugins/ root\\\"
+
+              # Nuke stale bizzymod/ from before the optional/bizzymod/ move.
+              if [ -d \\\$PLUG/bizzymod ]; then
+                  rm -rf \\\$PLUG/bizzymod
+                  echo \\\"Removed stale plugins/bizzymod/ directory\\\"
+              fi
+
               rm -f ${REMOTE_TARGET_FOLDER}/left4dead2/addons/sourcemod/data/match_vote.txt
               chown -R ${SRCDS_USER}:${SRCDS_USER} ${REMOTE_TARGET_FOLDER}/left4dead2/addons/sourcemod
           "
