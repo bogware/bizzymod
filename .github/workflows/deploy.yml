@@ -170,8 +170,6 @@ jobs:
           fi
           SSHPASS="${SSHPASS}" rsync -az --delete-after \
               --exclude '.git/' --exclude '.github/' --exclude '.cicd/' \
-              --exclude 'addons/sourcemod/plugins/match_vote.smx' \
-              --exclude 'addons/sourcemod/plugins/confoglcompmod.smx' \
               -e "sshpass -e ssh -o StrictHostKeyChecking=yes -p ${SSH_PORT}" \
               "${ZONE_SRC}" "${SSH_USER}@${SSH_HOST}:/tmp/bizzymod-stage-zonemod/"
           remote "
@@ -182,21 +180,25 @@ jobs:
           "
           echo "::endgroup::"
 
-          echo "::group::Quarantine matchmode framework on Campaign server"
-          # We do NOT want matchmode behavior on the Campaign server. Move any
-          # existing match_vote.smx / confoglcompmod.smx into plugins/disabled/
-          # so SourceMod's plugin loader ignores them entirely. Also delete the
-          # match_vote persistence file if present (it remembers the last
-          # voted mode and re-applies it at boot).
+          echo "::group::Full quarantine — move ALL plugins/ root .smx into plugins/disabled/"
+          # Plan B: SourceMod auto-loads everything in plugins/ root. We want
+          # NOTHING to auto-load. Move every .smx out of plugins/ root into
+          # plugins/disabled/. campaign.cfg explicitly loads what we want via
+          # 'sm plugins load disabled/<name>.smx'. Subdirectories
+          # (fixes/, optional/, anticheat/, bizzymod/) already don't auto-load.
+          #
+          # Also nuke matchmode persistence so confoglcompmod can't replay a
+          # stale "last voted mode" at boot.
           remote "
               PLUG=${REMOTE_TARGET_FOLDER}/left4dead2/addons/sourcemod/plugins
               install -d \\\$PLUG/disabled
-              for f in match_vote.smx confoglcompmod.smx; do
-                  if [ -f \\\$PLUG/\\\$f ]; then
-                      mv -f \\\$PLUG/\\\$f \\\$PLUG/disabled/\\\$f
-                      echo \\\"Quarantined: \\\$f\\\"
-                  fi
+              moved=0
+              for f in \\\$PLUG/*.smx; do
+                  [ -e \\\"\\\$f\\\" ] || continue
+                  mv -f \\\"\\\$f\\\" \\\$PLUG/disabled/
+                  moved=\\\$((moved + 1))
               done
+              echo \\\"Quarantined \\\$moved plugin(s) from plugins/ root\\\"
               rm -f ${REMOTE_TARGET_FOLDER}/left4dead2/addons/sourcemod/data/match_vote.txt
               chown -R ${SRCDS_USER}:${SRCDS_USER} ${REMOTE_TARGET_FOLDER}/left4dead2/addons/sourcemod
           "
@@ -207,6 +209,7 @@ jobs:
           SSHPASS="${SSHPASS}" rsync -az \
               --exclude '.git/' --exclude '.github/' --exclude '.cicd/' --exclude '.deploy/' \
               --exclude 'SourceMod/' --exclude 'zonemod/' --exclude '_zonemod_overlay/' \
+              --exclude 'legacy/' \
               --exclude 'CLAUDE.md' --exclude 'DEPLOY.md' --exclude 'guide/' \
               --exclude '*.md' \
               -e "sshpass -e ssh -o StrictHostKeyChecking=yes -p ${SSH_PORT}" \
