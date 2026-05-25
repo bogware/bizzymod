@@ -22,8 +22,9 @@ concurrency:
 
 env:
   ZONEMOD_RELEASE_TAG: v1.0.0                  # SirPlease L4D2-Competitive-Rework release to lay down first
-  SOURCEMOD_VERSION: 1.12.0-git7230            # MUST match what zonemod ships in addons/sourcemod/bin/
   L4D2_APPID: "222860"
+  # SourceMod compile root is provided by the rumblefrog/setup-sp action below,
+  # pinned to 1.12.x to match what zonemod v1.0.0 ships at addons/sourcemod/bin/.
 
 jobs:
   deploy:
@@ -52,27 +53,14 @@ jobs:
           sudo apt-get install -y --no-install-recommends sshpass rsync openssh-client
 
       # ----------------------------------------------------------------------
-      - name: Download SourceMod compile root (matches zonemod runtime)
-        run: |
-          set -euo pipefail
-          url="https://sourcemod.net/smdrop/1.12/sourcemod-${SOURCEMOD_VERSION}-linux.tar.gz"
-          echo "Downloading ${url}"
-          mkdir -p _sm_compile_root
-          curl -fSL "${url}" | tar -xz -C _sm_compile_root
-          spcomp_path="_sm_compile_root/addons/sourcemod/scripting/spcomp"
-          if [[ ! -f "${spcomp_path}" ]]; then
-              echo "ERROR: spcomp not found at ${spcomp_path}" >&2
-              ls -la _sm_compile_root/addons/sourcemod/scripting/ | head -20 >&2 || true
-              exit 1
-          fi
-          chmod +x "${spcomp_path}"
-          echo "spcomp version:"
-          "${spcomp_path}" -h 2>&1 | head -2 || true
+      - name: Setup SourcePawn compiler (SM 1.12 — match zonemod runtime)
+        uses: rumblefrog/setup-sp@master
+        with:
+          version: '1.12.x'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       # ----------------------------------------------------------------------
-      - name: Compile Bizzymod plugins (Linux spcomp, no wine)
-        env:
-          SM_COMPILE_ROOT: ${{ github.workspace }}/_sm_compile_root
+      - name: Compile Bizzymod plugins
         run: |
           chmod +x .deploy/build-plugins.sh
           .deploy/build-plugins.sh
