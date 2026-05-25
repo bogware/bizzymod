@@ -2616,29 +2616,22 @@ void PlaySound(int client, const char sound[32])
 // ====================================================================================================
 // Taken from:
 // https://docs.sourcemod.net/api/index.php?fastload=show&id=151&
-void CPrintToChatAll(const char[] format, any ..., int client = 0)
+// Note: original signature was `(const char[] format, any ..., int client = 0)`,
+// which modern spcomp rejects (no params after varargs). All callsites pass
+// only format+varargs, so client always defaulted to 0, making the
+// NOTIFY_CLIENT branch dead code (IsClientInGame(0) is always false). Dropped
+// the unused param + dead branch and simplified to the broadcast loop.
+void CPrintToChatAll(const char[] format, any ...)
 {
 	static char buffer[192];
 
-	if( g_iCvarNotify & NOTIFY_CLIENT )
+	for( int i = 1; i <= MaxClients; i++ )
 	{
-		if( IsClientInGame(client) && !IsFakeClient(client) )
+		if( IsClientInGame(i) && !IsFakeClient(i) )
 		{
-			SetGlobalTransTarget(client);
-			VFormat(buffer, sizeof(buffer), format, 3);
-			PrintToChat(client, buffer);
-		}
-	}
-	else
-	{
-		for( int i = 1; i <= MaxClients; i++ )
-		{
-			if( IsClientInGame(i) && !IsFakeClient(i) )
-			{
-				SetGlobalTransTarget(i);
-				VFormat(buffer, sizeof(buffer), format, 2);
-				PrintToChat(i, buffer);
-			}
+			SetGlobalTransTarget(i);
+			VFormat(buffer, sizeof(buffer), format, 2);
+			PrintToChat(i, buffer);
 		}
 	}
 }

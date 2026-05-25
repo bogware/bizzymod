@@ -41,14 +41,23 @@ WORK="$(mktemp -d -t bizzybuild.XXXXXX)"
 trap 'rm -rf "${WORK}"' EXIT
 
 echo "build-plugins: staging bizzymod scripting in ${WORK}"
-cp -a "${BIZZY_SCRIPTING}/." "${WORK}/"
+rsync -a "${BIZZY_SCRIPTING}/" "${WORK}/"
 
 if [[ -d "${ZONE_SCRIPTING}" ]]; then
-    echo "build-plugins: overlaying zonemod scripting (skip-existing — bizzymod wins)"
-    cp -an "${ZONE_SCRIPTING}/." "${WORK}/" || true
+    echo "build-plugins: overlaying zonemod scripting (--ignore-existing — bizzymod wins)"
+    rsync -a --ignore-existing "${ZONE_SCRIPTING}/" "${WORK}/"
 else
     echo "build-plugins: WARNING — ${ZONE_SCRIPTING} missing, includes may not resolve" >&2
 fi
+
+# Sanity-check: confirm key third-party includes resolved.
+for inc in left4dhooks.inc l4d2lib.inc colors.inc multicolors.inc; do
+    if [[ -f "${WORK}/include/${inc}" ]]; then
+        echo "build-plugins:   include OK: ${inc}"
+    else
+        echo "build-plugins:   include MISSING: ${inc}" >&2
+    fi
+done
 
 cd "${WORK}"
 
