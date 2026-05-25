@@ -383,14 +383,14 @@ public OnTakeDamagePost(victim, attacker, inflictor, Float:damage, damagetype)
 	&& tdamage < MaxDamageHandle*2
 	&& !g_bLowWreck[victim])
 	{
-		g_bLowWreck = true;
+		g_bLowWreck[victim] = true;
 		AttachParticle(victim, DAMAGE_WHITE_SMOKE);
 	}
 	else if(tdamage >= MaxDamageHandle*2
 	&& tdamage < MaxDamageHandle*3
 	&& !g_bMidWreck[victim])
 	{
-		g_bMidWreck = true;
+		g_bMidWreck[victim] = true;
 		AttachParticle(victim, DAMAGE_BLACK_SMOKE);
 	}
 	
@@ -398,7 +398,7 @@ public OnTakeDamagePost(victim, attacker, inflictor, Float:damage, damagetype)
 	&& tdamage < MaxDamageHandle*4
 	&& !g_bHighWreck[victim])
 	{
-		g_bHighWreck = true;
+		g_bHighWreck[victim] = true;
 		if(!IsSoundPrecached(FIRE_SOUND))
 		{
 			PrecacheSound(FIRE_SOUND);
@@ -418,7 +418,7 @@ public OnTakeDamagePost(victim, attacker, inflictor, Float:damage, damagetype)
 	&& tdamage < MaxDamageHandle*5
 	&& !g_bCritWreck[victim])
 	{
-		g_bCritWreck = true;
+		g_bCritWreck[victim] = true;
 		AttachParticle(victim, DAMAGE_FIRE_HUGE);
 	}
 	
