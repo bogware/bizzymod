@@ -36,9 +36,6 @@ on:
         type: boolean
         default: false
 
-env:
-  BIZZYMOD_STATS_REF: master   # which ref of bogware/bizzymod-stats to use for schema
-
 jobs:
   migrate:
     runs-on: ubuntu-latest
@@ -49,13 +46,6 @@ jobs:
       - name: Checkout this repo
         uses: actions/checkout@v5
 
-      - name: Checkout bogware/bizzymod-stats (schema + migrate.py)
-        uses: actions/checkout@v5
-        with:
-          repository: bogware/bizzymod-stats
-          ref: ${{ env.BIZZYMOD_STATS_REF }}
-          path: bizzymod-stats
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -64,8 +54,9 @@ jobs:
       - name: Install Python deps
         run: |
           python -m pip install --upgrade pip
-          # schema/scripts/migrate.py uses mysql-connector-python; .deploy/migrate-legacy-stats.py does too.
-          pip install -r bizzymod-stats/schema/scripts/requirements.txt
+          # bizzymod-stats schema + migrate.py are vendored under
+          # .deploy/bizzymod_stats_schema/. Same for the legacy importer.
+          pip install -r .deploy/bizzymod_stats_schema/scripts/requirements.txt
           # Be explicit in case requirements.txt is missing the connector.
           pip install "mysql-connector-python>=8.0"
 
@@ -108,7 +99,7 @@ jobs:
           MYSQL_PASS: ${{ secrets.L4DSTATS_PASS }}
         run: |
           set -euo pipefail
-          python bizzymod-stats/schema/scripts/migrate.py \
+          python .deploy/bizzymod_stats_schema/scripts/migrate.py \
             --host "${MYSQL_HOST}" --port "${MYSQL_PORT}" \
             --user "${MYSQL_USER}" --password "${MYSQL_PASS}" \
             --database bizzymod_stats
