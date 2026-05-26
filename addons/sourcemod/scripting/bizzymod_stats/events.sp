@@ -13,76 +13,76 @@
 
 void Bizzy_OnEventsInit()
 {
-    HookEvent("player_death",         Event_PlayerDeath,        EventHookMode_Post);
-    HookEvent("player_hurt",          Event_PlayerHurt,         EventHookMode_Post);
-    HookEvent("player_incapacitated", Event_PlayerIncap,        EventHookMode_Post);
-    HookEvent("revive_success",       Event_ReviveSuccess,      EventHookMode_Post);
-    HookEvent("heal_success",         Event_HealSuccess,        EventHookMode_Post);
-    HookEvent("pills_used",           Event_PillsUsed,          EventHookMode_Post);
-    HookEvent("defibrillator_used",   Event_DefibUsed,          EventHookMode_Post);
-    HookEvent("witch_killed",         Event_WitchKilled,        EventHookMode_Post);
-    HookEvent("witch_harasser_set",   Event_WitchDisturbed,     EventHookMode_Post);
-    HookEvent("tank_killed",          Event_TankKilled,         EventHookMode_Post);
-    HookEvent("infected_death",       Event_InfectedDeath,      EventHookMode_Post);
-    HookEvent("triggered_car_alarm",  Event_CarAlarm,           EventHookMode_Post);
-    HookEvent("gascan_pour_completed", Event_GascanPoured,      EventHookMode_Post);
-    HookEvent("upgrade_pack_used",    Event_AmmoUpgrade,        EventHookMode_Post);
-    HookEvent("lunge_pounce",         Event_HunterPounce,       EventHookMode_Post);
-    HookEvent("pounce_stopped",       Event_PounceStopped,      EventHookMode_Post);
-    HookEvent("jockey_ride",          Event_JockeyRide,         EventHookMode_Post);
-    HookEvent("jockey_ride_end",      Event_JockeyRideEnd,      EventHookMode_Post);
-    HookEvent("charger_charge_start", Event_ChargerStart,       EventHookMode_Post);
-    HookEvent("charger_impact",       Event_ChargerImpact,      EventHookMode_Post);
-    HookEvent("tank_spawn",           Event_TankSpawn,          EventHookMode_Post);
-    HookEvent("zombie_ignited",       Event_ZombieIgnited,      EventHookMode_Post);
-    HookEvent("finale_win",           Event_FinaleWin,          EventHookMode_Post);
-    HookEvent("map_transition",       Event_MapTransition,      EventHookMode_Post);
-    HookEvent("mission_lost",         Event_MissionLost,        EventHookMode_Post);
-    HookEvent("round_end",            Event_RoundEnd,           EventHookMode_Post);
-    HookEvent("player_team",          Event_PlayerTeam,         EventHookMode_Post);
-    HookEvent("player_spawn",         Event_PlayerSpawn,        EventHookMode_Post);
-    HookEvent("weapon_fire",          Event_WeaponFire,         EventHookMode_Post);
-    HookEvent("weapon_zoom",          Event_WeaponZoom,         EventHookMode_Post);
+    HookEventEx("player_death",         Event_PlayerDeath,        EventHookMode_Post);
+    HookEventEx("player_hurt",          Event_PlayerHurt,         EventHookMode_Post);
+    HookEventEx("player_incapacitated", Event_PlayerIncap,        EventHookMode_Post);
+    HookEventEx("revive_success",       Event_ReviveSuccess,      EventHookMode_Post);
+    HookEventEx("heal_success",         Event_HealSuccess,        EventHookMode_Post);
+    HookEventEx("pills_used",           Event_PillsUsed,          EventHookMode_Post);
+    HookEventEx("defibrillator_used",   Event_DefibUsed,          EventHookMode_Post);
+    HookEventEx("witch_killed",         Event_WitchKilled,        EventHookMode_Post);
+    HookEventEx("witch_harasser_set",   Event_WitchDisturbed,     EventHookMode_Post);
+    HookEventEx("tank_killed",          Event_TankKilled,         EventHookMode_Post);
+    HookEventEx("infected_death",       Event_InfectedDeath,      EventHookMode_Post);
+    HookEventEx("triggered_car_alarm",  Event_CarAlarm,           EventHookMode_Post);
+    HookEventEx("gascan_pour_completed", Event_GascanPoured,      EventHookMode_Post);
+    HookEventEx("upgrade_pack_used",    Event_AmmoUpgrade,        EventHookMode_Post);
+    HookEventEx("lunge_pounce",         Event_HunterPounce,       EventHookMode_Post);
+    HookEventEx("pounce_stopped",       Event_PounceStopped,      EventHookMode_Post);
+    HookEventEx("jockey_ride",          Event_JockeyRide,         EventHookMode_Post);
+    HookEventEx("jockey_ride_end",      Event_JockeyRideEnd,      EventHookMode_Post);
+    HookEventEx("charger_charge_start", Event_ChargerStart,       EventHookMode_Post);
+    HookEventEx("charger_impact",       Event_ChargerImpact,      EventHookMode_Post);
+    HookEventEx("tank_spawn",           Event_TankSpawn,          EventHookMode_Post);
+    HookEventEx("zombie_ignited",       Event_ZombieIgnited,      EventHookMode_Post);
+    HookEventEx("finale_win",           Event_FinaleWin,          EventHookMode_Post);
+    HookEventEx("map_transition",       Event_MapTransition,      EventHookMode_Post);
+    HookEventEx("mission_lost",         Event_MissionLost,        EventHookMode_Post);
+    HookEventEx("round_end",            Event_RoundEnd,           EventHookMode_Post);
+    HookEventEx("player_team",          Event_PlayerTeam,         EventHookMode_Post);
+    HookEventEx("player_spawn",         Event_PlayerSpawn,        EventHookMode_Post);
+    HookEventEx("weapon_fire",          Event_WeaponFire,         EventHookMode_Post);
+    HookEventEx("weapon_zoom",          Event_WeaponZoom,         EventHookMode_Post);
 
     // 008+: deeper captures
-    HookEvent("weapon_reload",        Event_WeaponReload,       EventHookMode_Post);
-    HookEvent("revive_begin",         Event_ReviveBegin,        EventHookMode_Post);
-    HookEvent("heal_begin",           Event_HealBegin,          EventHookMode_Post);
-    HookEvent("pills_used_fail",      Event_PillsFail,          EventHookMode_Post);
-    HookEvent("entered_checkpoint",   Event_EnteredSafe,        EventHookMode_Post);
-    HookEvent("door_close",           Event_DoorClose,          EventHookMode_Post);
-    HookEvent("witch_spawn",          Event_WitchSpawn,         EventHookMode_Post);
-    HookEvent("witch_killed",         Event_WitchKilledExt,     EventHookMode_Post);
-    HookEvent("panic_event_start",    Event_PanicStart,         EventHookMode_Post);
-    HookEvent("panic_event_finished", Event_PanicEnd,           EventHookMode_Post);
-    HookEvent("gauntlet_finale_start", Event_PanicStart,        EventHookMode_Post);
-    HookEvent("finale_start",         Event_FinaleStart,        EventHookMode_Post);
-    HookEvent("finale_radio_start",   Event_FinaleStart,        EventHookMode_Post);
-    HookEvent("zombie_spawned",       Event_ZombieSpawned,      EventHookMode_Post);
+    HookEventEx("weapon_reload",        Event_WeaponReload,       EventHookMode_Post);
+    HookEventEx("revive_begin",         Event_ReviveBegin,        EventHookMode_Post);
+    HookEventEx("heal_begin",           Event_HealBegin,          EventHookMode_Post);
+    HookEventEx("pills_used_fail",      Event_PillsFail,          EventHookMode_Post);
+    HookEventEx("entered_checkpoint", Event_EnteredSafe,        EventHookMode_Post);  // not present in all builds; non-fatal
+    HookEventEx("door_close",           Event_DoorClose,          EventHookMode_Post);
+    HookEventEx("witch_spawn",          Event_WitchSpawn,         EventHookMode_Post);
+    HookEventEx("witch_killed",         Event_WitchKilledExt,     EventHookMode_Post);
+    HookEventEx("panic_event_start",    Event_PanicStart,         EventHookMode_Post);
+    HookEventEx("panic_event_finished", Event_PanicEnd,           EventHookMode_Post);
+    HookEventEx("gauntlet_finale_start", Event_PanicStart,        EventHookMode_Post);
+    HookEventEx("finale_start",         Event_FinaleStart,        EventHookMode_Post);
+    HookEventEx("finale_radio_start",   Event_FinaleStart,        EventHookMode_Post);
+    HookEventEx("zombie_spawned",       Event_ZombieSpawned,      EventHookMode_Post);
 
     // SI ability tracking
-    HookEvent("tongue_release",       Event_TongueRelease,      EventHookMode_Post);
-    HookEvent("smoker_self_revealed", Event_SmokerSelfClear,    EventHookMode_Post);
+    HookEventEx("tongue_release",       Event_TongueRelease,      EventHookMode_Post);
+    HookEventEx("smoker_self_revealed", Event_SmokerSelfClear,    EventHookMode_Post);
 
     // Versus first-blood / first-down
     // (handled inside Event_PlayerDeath / Event_PlayerIncap via versus.sp helpers)
 
     // Scavenge per-gascan
-    HookEvent("gascan_pour_blocked",  Event_GascanInterrupted,  EventHookMode_Post);
-    HookEvent("gascan_dropped",       Event_GascanInterrupted,  EventHookMode_Post);
+    HookEventEx("gascan_pour_blocked",  Event_GascanInterrupted,  EventHookMode_Post);
+    HookEventEx("gascan_dropped",       Event_GascanInterrupted,  EventHookMode_Post);
 
     // 007: extended captures
-    HookEvent("ability_use",          Event_AbilityUse,         EventHookMode_Post);
-    HookEvent("tongue_grab",          Event_TongueGrab,         EventHookMode_Post);
-    HookEvent("choke_start",          Event_ChokeStart,         EventHookMode_Post);
-    HookEvent("jockey_ride",          Event_PinJockey,          EventHookMode_Post);
-    HookEvent("charger_pummel_start", Event_PinChargerPummel,   EventHookMode_Post);
-    HookEvent("charger_carry_start",  Event_PinChargerCarry,    EventHookMode_Post);
-    HookEvent("boomer_exploded",      Event_BoomerExploded,     EventHookMode_Post);
-    HookEvent("player_now_it",        Event_VomitedOn,          EventHookMode_Post);
-    HookEvent("pipe_bomb_used",       Event_PipeUsed,           EventHookMode_Post);
-    HookEvent("molotov_thrown",       Event_MolotovThrown,      EventHookMode_Post);
-    HookEvent("vomitjar_thrown",      Event_BileThrown,         EventHookMode_Post);
+    HookEventEx("ability_use",          Event_AbilityUse,         EventHookMode_Post);
+    HookEventEx("tongue_grab",          Event_TongueGrab,         EventHookMode_Post);
+    HookEventEx("choke_start",          Event_ChokeStart,         EventHookMode_Post);
+    HookEventEx("jockey_ride",          Event_PinJockey,          EventHookMode_Post);
+    HookEventEx("charger_pummel_start", Event_PinChargerPummel,   EventHookMode_Post);
+    HookEventEx("charger_carry_start",  Event_PinChargerCarry,    EventHookMode_Post);
+    HookEventEx("boomer_exploded",      Event_BoomerExploded,     EventHookMode_Post);
+    HookEventEx("player_now_it",        Event_VomitedOn,          EventHookMode_Post);
+    HookEventEx("pipe_bomb_used",       Event_PipeUsed,           EventHookMode_Post);
+    HookEventEx("molotov_thrown",       Event_MolotovThrown,      EventHookMode_Post);
+    HookEventEx("vomitjar_thrown",      Event_BileThrown,         EventHookMode_Post);
 }
 
 // -----------------------------------------------------------------------------
