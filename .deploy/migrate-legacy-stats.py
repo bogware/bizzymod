@@ -143,10 +143,12 @@ def ensure_legacy_server(new_cur) -> int:
     historical data to."""
     # The column is named `key` (reserved word — must backtick) and game_id is
     # required NOT NULL. We tag the import as L4D2 (game_id=2).
+    # servers.key is CHAR(32) — ljust pads to exactly 32 with '-'.
+    legacy_key = "legacy-import".ljust(32, "-")
     new_cur.execute(
         "INSERT INTO servers (`key`, `name`, `game_id`) VALUES (%s, %s, %s) "
         "ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)",
-        ("legacy-import--------------------", "Legacy l4d_stats import", 2),
+        (legacy_key, "Legacy l4d_stats import", 2),
     )
     return new_cur.lastrowid
 
