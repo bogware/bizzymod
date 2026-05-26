@@ -1,0 +1,216 @@
+name: Diagnose server
+
+# One-shot validation workflow. Verifies the stats DB has the migrated
+# data, dumps the most recent SourceMod errors log from the game server,
+# and surfaces missing gamedata files / plugin load failures.
+
+on:
+  workflow_dispatch:
+    inputs:
+      sample_steamid:
+        description: "Optional STEAM_X:Y:Z to look up in the new stats DB"
+        type: string
+        default: ""
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v5
+
+      - name: Install sshpass + rsync
+        run: sudo apt-get update -y && sudo apt-get install -y --no-install-recommends sshpass rsync openssh-client
+
+      - name: Trust SSH host
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ vars.SSH_PORT || '22' }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          ssh-keyscan -p "${SSH_PORT}" -H "${SSH_HOST}" >> ~/.ssh/known_hosts 2>/dev/null
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Run diagnostics on the game server
+        env:
+          SSHPASS:                ${{ secrets.SSH_PASSWORD }}
+          SUDO_PASS:              ${{ secrets.SUDO_PASSWORD }}
+          SSH_HOST:               ${{ secrets.SSH_HOST }}
+          SSH_USER:               ${{ vars.SSH_USER }}
+          SSH_PORT:               ${{ vars.SSH_PORT || '22' }}
+          REMOTE_TARGET_FOLDER:   ${{ vars.REMOTE_TARGET_FOLDER }}
+          SRCDS_USER:             ${{ vars.SRCDS_USER }}
+          MYSQL_HOST:             ${{ vars.L4DSTATS_DB_IP }}
+          MYSQL_PORT:             ${{ vars.L4DSTATS_PORT }}
+          MYSQL_USER:             ${{ vars.L4DSTATS_USER }}
+          MYSQL_PASS:             ${{ secrets.L4DSTATS_PASS }}
+          LEGACY_DB:              ${{ vars.L4DSTATS_DB }}
+          SAMPLE_STEAMID:         ${{ inputs.sample_steamid }}
+        run: |
+          set -euo pipefail
+
+          plain_remote() {
+              SSHPASS="${SSHPASS}" sshpass -e ssh -o StrictHostKeyChecking=yes \
+                  -p "${SSH_PORT}" "${SSH_USER}@${SSH_HOST}" "$1"
+          }
+
+          echo "::group::1. Stats DB row counts (bizzymod_stats vs legacy ${LEGACY_DB})"
+          plain_remote "
+              python3 - <<'PY'
+          import mysql.connector
+          conn = mysql.connector.connect(
+              host='${MYSQL_HOST}', port=${MYSQL_PORT},
+              user='${MYSQL_USER}', password='''${MYSQL_PASS}''',
+          )
+          cur = conn.cursor()
+          for db in ('${LEGACY_DB}', 'bizzymod_stats'):
+              print(f'--- {db} ---')
+              cur.execute(f'USE {db}')
+              cur.execute('SHOW TABLES')
+              tables = [r[0] for r in cur.fetchall()]
+              for t in tables:
+                  try:
+                      cur.execute(f'SELECT COUNT(*) FROM \`{t}\`')
+                      n = cur.fetchone()[0]
+                  except Exception as e:
+                      n = f'(err: {e})'
+                  print(f'  {t:40s} {n}')
+          conn.close()
+          PY
+          "
+          echo "::endgroup::"
+
+          echo "::group::2. Top 5 players by points (sanity check migrated data)"
+          plain_remote "
+              python3 - <<'PY'
+          import mysql.connector
+          conn = mysql.connector.connect(
+              host='${MYSQL_HOST}', port=${MYSQL_PORT},
+              user='${MYSQL_USER}', password='''${MYSQL_PASS}''',
+              database='bizzymod_stats',
+          )
+          cur = conn.cursor()
+          cur.execute('''
+              SELECT p.steamid,
+                     CAST(p.name AS CHAR) AS nm,
+                     SUM(ps.points) AS pts,
+                     SUM(ps.playtime_s) AS pt_s,
+                     SUM(ps.kills_common + ps.kills_special) AS k
+              FROM players p JOIN player_stats ps ON ps.player_id=p.id
+              GROUP BY p.id ORDER BY pts DESC LIMIT 5
+          ''')
+          for row in cur.fetchall():
+              print(' ', row)
+          conn.close()
+          PY
+          "
+          echo "::endgroup::"
+
+          if [[ -n "${SAMPLE_STEAMID}" ]]; then
+              echo "::group::3. Lookup specific steamid: ${SAMPLE_STEAMID}"
+              plain_remote "
+                  python3 - <<'PY'
+          import mysql.connector
+          conn = mysql.connector.connect(
+              host='${MYSQL_HOST}', port=${MYSQL_PORT},
+              user='${MYSQL_USER}', password='''${MYSQL_PASS}''',
+              database='bizzymod_stats',
+          )
+          cur = conn.cursor()
+          cur.execute('SELECT id, steamid, CAST(name AS CHAR), last_seen FROM players WHERE steamid=%s', ('${SAMPLE_STEAMID}',))
+          row = cur.fetchone()
+          if not row:
+              print('  Not in bizzymod_stats.players!')
+          else:
+              print('  player:', row)
+              cur.execute('SELECT gamemode_id, points, playtime_s, kills_common, kills_special FROM player_stats WHERE player_id=%s', (row[0],))
+              for r in cur.fetchall():
+                  print('    stats:', r)
+              cur.execute('SELECT a.code, pa.count FROM player_awards pa JOIN awards a ON a.id=pa.award_id WHERE pa.player_id=%s ORDER BY pa.count DESC LIMIT 10', (row[0],))
+              for r in cur.fetchall():
+                  print('    award:', r)
+          conn.close()
+          PY
+              "
+              echo "::endgroup::"
+          fi
+
+          echo "::group::4. SourceMod errors_<today>.log tail (last 200 lines)"
+          remote_target="${REMOTE_TARGET_FOLDER}/left4dead2/addons/sourcemod/logs"
+          plain_remote "
+              latest=\$(ls -1t ${remote_target}/errors_*.log 2>/dev/null | head -1)
+              if [ -z \"\$latest\" ]; then
+                  echo 'no errors_*.log found'
+              else
+                  echo \"\$latest:\"
+                  tail -n 200 \"\$latest\"
+              fi
+          "
+          echo "::endgroup::"
+
+          echo "::group::5. Most recent SourceMod L<date>.log (plugin load events)"
+          plain_remote "
+              logsdir=${REMOTE_TARGET_FOLDER}/left4dead2/addons/sourcemod/logs
+              latest=\$(ls -1t \$logsdir/L*.log 2>/dev/null | head -1)
+              if [ -z \"\$latest\" ]; then
+                  echo 'no L<date>.log found'
+              else
+                  echo \"\$latest:\"
+                  grep -iE 'error|fail|exception|warning|cannot|unable' \"\$latest\" | tail -n 100 || echo 'no matching lines'
+              fi
+          "
+          echo "::endgroup::"
+
+          echo "::group::6. Plugin state: which plugins are loaded right now"
+          # Walks the plugins directory to find every .smx and reports
+          # presence — quick & dirty in lieu of rcon.
+          plain_remote "
+              plug=${REMOTE_TARGET_FOLDER}/left4dead2/addons/sourcemod/plugins
+              echo '=== plugins/ root (autoloaded) ==='
+              ls \$plug/*.smx 2>/dev/null | head -20 || echo '(empty — expected, all quarantined)'
+              echo ''
+              echo '=== plugins/fixes/ count ==='
+              ls \$plug/fixes/ 2>/dev/null | wc -l
+              echo '=== plugins/anticheat/ ==='
+              ls \$plug/anticheat/ 2>/dev/null
+              echo '=== plugins/optional/bizzymod/ ==='
+              ls \$plug/optional/bizzymod/ 2>/dev/null
+              echo '=== plugins/disabled/ count ==='
+              ls \$plug/disabled/ 2>/dev/null | wc -l
+          "
+          echo "::endgroup::"
+
+          echo "::group::7. Gamedata check — does explosive_cars have its file?"
+          plain_remote "
+              gd=${REMOTE_TARGET_FOLDER}/left4dead2/addons/sourcemod/gamedata
+              for f in l4d2explosivecars.txt l4d2_explosive_cars.txt; do
+                  if [ -f \$gd/\$f ]; then
+                      echo \"FOUND \$f:\"
+                      cat \$gd/\$f
+                      echo ''
+                  fi
+              done
+              echo '--- all gamedata files mentioning explosivecars/Fling/Molotov ---'
+              grep -lE 'explosivecars|CTerrorPlayer_Fling|CMolotovProjectile_Create' \$gd/*.txt 2>/dev/null || echo '(none)'
+          "
+          echo "::endgroup::"
+
+          echo "::group::8. Survivor slot caps — what is the engine actually reporting?"
+          # SuperVersus expands survivor_limit / sv_maxplayers at runtime.
+          # If the plugin failed to load, the engine sticks at the L4D2 default of 4.
+          plain_remote "
+              gd=${REMOTE_TARGET_FOLDER}/left4dead2/addons/sourcemod/gamedata
+              echo '--- gamedata files referencing SuperVersus / SetMaxPlayers / SurvivorCount ---'
+              grep -lE 'SuperVersus|SetMaxPlayers|m_survivor_limit|SurvivorCount|MaxPlayers' \$gd/*.txt 2>/dev/null | head -20
+              echo ''
+              echo '--- pre-built l4d_superversus.smx + its config file ---'
+              ls -la ${REMOTE_TARGET_FOLDER}/left4dead2/addons/sourcemod/plugins/optional/bizzymod/l4d_superversus.smx 2>/dev/null
+              ls -la ${REMOTE_TARGET_FOLDER}/left4dead2/cfg/sourcemod/*superversus* 2>/dev/null || echo '(no superversus auto-cfg)'
+              echo ''
+              echo '--- mp_gamemode + survivor_limit + sv_maxplayers as currently set ---'
+              tail -n 50 ${REMOTE_TARGET_FOLDER}/left4dead2/console.log 2>/dev/null | grep -iE 'gamemode|survivor_limit|maxplayers|maxsurvivors' | tail -20
+          "
+          echo "::endgroup::"
