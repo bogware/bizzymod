@@ -94,13 +94,14 @@ jobs:
               "${SSH_USER}@${SSH_HOST}:${REMOTE_DIR}/"
           echo "::endgroup::"
 
-          echo "::group::Install Python + mysql-connector on game server"
+          echo "::group::Install Python + MySQL libraries on game server"
+          # migrate.py needs pymysql; migrate-legacy-stats.py needs mysql-connector-python.
           remote "
               command -v python3 >/dev/null || apt-get install -y python3
               command -v pip3 >/dev/null || apt-get install -y python3-pip
-              # Some Ubuntu 24 setups want --break-system-packages for global installs.
-              pip3 install --break-system-packages 'mysql-connector-python>=8.0' 2>/dev/null \
-                  || pip3 install 'mysql-connector-python>=8.0'
+              # Ubuntu 24 (PEP 668) needs --break-system-packages for global pip.
+              pip3 install --break-system-packages 'pymysql>=1.1.0' 'mysql-connector-python>=8.0' 2>/dev/null \
+                  || pip3 install 'pymysql>=1.1.0' 'mysql-connector-python>=8.0'
               python3 --version
           "
           echo "::endgroup::"
