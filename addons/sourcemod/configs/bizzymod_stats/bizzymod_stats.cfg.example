@@ -1,0 +1,22 @@
+// bizzymod-stats default ConVars. Copy to cfg/sourcemod/bizzymod_stats.cfg (or let
+// the plugin auto-exec via AutoExecConfig). Per-CVAR docs are in
+// docs/CVARS.md.
+
+bizzymod_stats_enabled                  "1"
+bizzymod_stats_announce_join            "1"
+bizzymod_stats_announce_rank            "1"
+
+// Friendly fire
+bizzymod_stats_ffire_mode               "1"     // 0=off, 1=cooldown, 2=damage
+bizzymod_stats_ffire_multiplier         "1.5"
+bizzymod_stats_ffire_cooldown           "10.0"
+
+// Difficulty
+bizzymod_stats_difficulty_multiplier    "1"
+bizzymod_stats_negative_score           "1"
+
+// Activity feed (writes award_events table; off by default)
+bizzymod_stats_log_events               "0"
+
+// Bot interaction
+bizzymod_stats_bot_multiplier           "1.0"
