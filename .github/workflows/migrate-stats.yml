@@ -1,24 +1,18 @@
 name: Migrate stats DB
 
-# Manual-trigger workflow that:
-#   1. (optionally) creates the `bizzymod_stats` DB on the MySQL host
-#   2. applies the bizzymod-stats schema migrations
-#   3. ports legacy l4d_stats data into the new schema
+# Manual-trigger workflow that ports legacy l4d_stats data into the new
+# bizzymod_stats schema. Runs from the GAME SERVER (via SSH) because the
+# MySQL host has IP allowlisting and the GH Actions runner IPs aren't on it
+# — but the game server already has working DB connectivity.
 #
-# All steps are idempotent. Re-running is safe. Use the dry_run input first
-# to preview without writing.
+# Steps (all idempotent + safe to re-run):
+#   1. rsync migration files into /tmp on the game server
+#   2. (via SSH) install Python3 + mysql-connector-python
+#   3. (via SSH) ensure `bizzymod_stats` database exists
+#   4. (via SSH) apply schema migrations via the vendored migrate.py
+#   5. (via SSH) import legacy data via migrate-legacy-stats.py
 #
-# Credentials come from the existing L4DSTATS_* vars/secrets. The DB user
-# must have GRANT ALL on bizzymod_stats.* — run this SQL once on the MySQL
-# host before invoking the workflow:
-#
-#   CREATE DATABASE IF NOT EXISTS bizzymod_stats
-#       CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-#   GRANT ALL ON bizzymod_stats.* TO '<L4DSTATS_USER>'@'%';
-#   FLUSH PRIVILEGES;
-#
-# (The workflow will try CREATE DATABASE itself if your user has the
-# privilege; if not it will fail loudly and you'll need the SQL above.)
+# Credentials are reused from the existing L4DSTATS_* + SSH_* vars/secrets.
 
 on:
   workflow_dispatch:
@@ -46,77 +40,125 @@ jobs:
       - name: Checkout this repo
         uses: actions/checkout@v5
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+      - name: Install sshpass + rsync
+        run: sudo apt-get update -y && sudo apt-get install -y --no-install-recommends sshpass rsync openssh-client
 
-      - name: Install Python deps
-        run: |
-          python -m pip install --upgrade pip
-          # bizzymod-stats schema + migrate.py are vendored under
-          # .deploy/bizzymod_stats_schema/. Same for the legacy importer.
-          pip install -r .deploy/bizzymod_stats_schema/scripts/requirements.txt
-          # Be explicit in case requirements.txt is missing the connector.
-          pip install "mysql-connector-python>=8.0"
-
-      - name: Install MySQL client (for the CREATE DATABASE bootstrap step)
-        run: sudo apt-get update -y && sudo apt-get install -y --no-install-recommends mysql-client
-
-      - name: Bootstrap — ensure bizzymod_stats database exists
+      - name: Trust SSH host
         env:
-          MYSQL_HOST: ${{ vars.L4DSTATS_DB_IP }}
-          MYSQL_PORT: ${{ vars.L4DSTATS_PORT }}
-          MYSQL_USER: ${{ vars.L4DSTATS_USER }}
-          MYSQL_PASS: ${{ secrets.L4DSTATS_PASS }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ vars.SSH_PORT || '22' }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          ssh-keyscan -p "${SSH_PORT}" -H "${SSH_HOST}" >> ~/.ssh/known_hosts 2>/dev/null
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Run migration on the game server
+        env:
+          SSHPASS:        ${{ secrets.SSH_PASSWORD }}
+          SUDO_PASS:      ${{ secrets.SUDO_PASSWORD }}
+          SSH_HOST:       ${{ secrets.SSH_HOST }}
+          SSH_USER:       ${{ vars.SSH_USER }}
+          SSH_PORT:       ${{ vars.SSH_PORT || '22' }}
+          MYSQL_HOST:     ${{ vars.L4DSTATS_DB_IP }}
+          MYSQL_PORT:     ${{ vars.L4DSTATS_PORT }}
+          MYSQL_USER:     ${{ vars.L4DSTATS_USER }}
+          MYSQL_PASS:     ${{ secrets.L4DSTATS_PASS }}
+          LEGACY_DB:      ${{ vars.L4DSTATS_DB }}
+          DRY_RUN:        ${{ inputs.dry_run }}
+          SKIP_SCHEMA:    ${{ inputs.skip_schema_migrate }}
+          SKIP_IMPORT:    ${{ inputs.skip_legacy_import }}
         run: |
           set -euo pipefail
-          export MYSQL_PWD="${MYSQL_PASS}"
-          # Try to create. If the user lacks CREATE DATABASE privilege this
-          # will fail; we print a hint and exit so the operator does it manually.
-          if ! mysql -h "${MYSQL_HOST}" -P "${MYSQL_PORT}" -u "${MYSQL_USER}" \
-                  -e "CREATE DATABASE IF NOT EXISTS bizzymod_stats CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" 2>/tmp/mysql.err; then
-              echo "::error::Could not CREATE DATABASE bizzymod_stats. Output:"
-              cat /tmp/mysql.err
-              echo ""
-              echo "Run this on the MySQL host manually (as root):"
-              echo "  CREATE DATABASE bizzymod_stats CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-              echo "  GRANT ALL ON bizzymod_stats.* TO '${MYSQL_USER}'@'%';"
-              echo "  FLUSH PRIVILEGES;"
-              exit 1
+
+          REMOTE_DIR="/tmp/bizzymod-stats-migrate.$$"
+          DRY_RUN_FLAG=""
+          if [[ "${DRY_RUN}" == "true" ]]; then DRY_RUN_FLAG="--dry-run"; fi
+
+          # Helper for sudo-required commands (uses fed-via-stdin sudo password).
+          remote() {
+              SSHPASS="${SSHPASS}" sshpass -e ssh -o StrictHostKeyChecking=yes \
+                  -p "${SSH_PORT}" "${SSH_USER}@${SSH_HOST}" \
+                  "sudo -S -p '' bash -lc \"$1\"" <<< "${SUDO_PASS}"
+          }
+          plain_remote() {
+              SSHPASS="${SSHPASS}" sshpass -e ssh -o StrictHostKeyChecking=yes \
+                  -p "${SSH_PORT}" "${SSH_USER}@${SSH_HOST}" "$1"
+          }
+
+          echo "::group::Rsync migration files to game server"
+          SSHPASS="${SSHPASS}" rsync -az --delete \
+              -e "sshpass -e ssh -o StrictHostKeyChecking=yes -p ${SSH_PORT}" \
+              .deploy/migrate-legacy-stats.py \
+              .deploy/bizzymod_stats_schema/ \
+              "${SSH_USER}@${SSH_HOST}:${REMOTE_DIR}/"
+          echo "::endgroup::"
+
+          echo "::group::Install Python + mysql-connector on game server"
+          remote "
+              command -v python3 >/dev/null || apt-get install -y python3
+              command -v pip3 >/dev/null || apt-get install -y python3-pip
+              # Some Ubuntu 24 setups want --break-system-packages for global installs.
+              pip3 install --break-system-packages 'mysql-connector-python>=8.0' 2>/dev/null \
+                  || pip3 install 'mysql-connector-python>=8.0'
+              python3 --version
+          "
+          echo "::endgroup::"
+
+          echo "::group::Bootstrap — ensure bizzymod_stats DB exists"
+          # mysql-client should already be available on the game server (or
+          # we can use python to test). Use Python instead — guaranteed to work.
+          plain_remote "
+              python3 - <<'PY'
+          import mysql.connector
+          conn = mysql.connector.connect(
+              host='${MYSQL_HOST}', port=${MYSQL_PORT},
+              user='${MYSQL_USER}', password='''${MYSQL_PASS}''',
+          )
+          cur = conn.cursor()
+          try:
+              cur.execute(\"CREATE DATABASE IF NOT EXISTS bizzymod_stats \"
+                          \"CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci\")
+              print('OK: bizzymod_stats database ready')
+          except mysql.connector.Error as e:
+              # Lacks CREATE DATABASE privilege. Tell the user.
+              print('Could not create database:', e)
+              print('Run this on the MySQL host once:')
+              print(\"  CREATE DATABASE bizzymod_stats CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;\")
+              print(\"  GRANT ALL ON bizzymod_stats.* TO '${MYSQL_USER}'\\\"@'%';\")
+              print(\"  FLUSH PRIVILEGES;\")
+              raise SystemExit(1)
+          conn.commit()
+          conn.close()
+          PY
+          "
+          echo "::endgroup::"
+
+          if [[ "${SKIP_SCHEMA}" != "true" ]]; then
+              echo "::group::Apply schema migrations"
+              plain_remote "
+                  cd ${REMOTE_DIR} && \
+                  python3 scripts/migrate.py \
+                      --host '${MYSQL_HOST}' --port '${MYSQL_PORT}' \
+                      --user '${MYSQL_USER}' --password '${MYSQL_PASS}' \
+                      --database bizzymod_stats
+              "
+              echo "::endgroup::"
           fi
-          # Verify the user can read the new DB.
-          mysql -h "${MYSQL_HOST}" -P "${MYSQL_PORT}" -u "${MYSQL_USER}" \
-                -e "USE bizzymod_stats; SHOW TABLES;" >/dev/null
-          echo "OK: bizzymod_stats exists and the user can access it."
 
-      - name: Apply bizzymod-stats schema migrations
-        if: ${{ !inputs.skip_schema_migrate }}
-        env:
-          MYSQL_HOST: ${{ vars.L4DSTATS_DB_IP }}
-          MYSQL_PORT: ${{ vars.L4DSTATS_PORT }}
-          MYSQL_USER: ${{ vars.L4DSTATS_USER }}
-          MYSQL_PASS: ${{ secrets.L4DSTATS_PASS }}
-        run: |
-          set -euo pipefail
-          python .deploy/bizzymod_stats_schema/scripts/migrate.py \
-            --host "${MYSQL_HOST}" --port "${MYSQL_PORT}" \
-            --user "${MYSQL_USER}" --password "${MYSQL_PASS}" \
-            --database bizzymod_stats
+          if [[ "${SKIP_IMPORT}" != "true" ]]; then
+              echo "::group::Import legacy l4d_stats data ${DRY_RUN_FLAG}"
+              plain_remote "
+                  cd ${REMOTE_DIR} && \
+                  python3 migrate-legacy-stats.py \
+                      --host '${MYSQL_HOST}' --port '${MYSQL_PORT}' \
+                      --user '${MYSQL_USER}' --password '${MYSQL_PASS}' \
+                      --legacy-db '${LEGACY_DB}' --new-db bizzymod_stats \
+                      ${DRY_RUN_FLAG}
+              "
+              echo "::endgroup::"
+          fi
 
-      - name: Import legacy l4d_stats data (idempotent)
-        if: ${{ !inputs.skip_legacy_import }}
-        env:
-          MYSQL_HOST:    ${{ vars.L4DSTATS_DB_IP }}
-          MYSQL_PORT:    ${{ vars.L4DSTATS_PORT }}
-          MYSQL_USER:    ${{ vars.L4DSTATS_USER }}
-          MYSQL_PASS:    ${{ secrets.L4DSTATS_PASS }}
-          LEGACY_DB:     ${{ vars.L4DSTATS_DB }}
-          DRY_RUN_FLAG:  ${{ inputs.dry_run && '--dry-run' || '' }}
-        run: |
-          set -euo pipefail
-          python .deploy/migrate-legacy-stats.py \
-            --host "${MYSQL_HOST}" --port "${MYSQL_PORT}" \
-            --user "${MYSQL_USER}" --password "${MYSQL_PASS}" \
-            --legacy-db "${LEGACY_DB}" --new-db bizzymod_stats \
-            ${DRY_RUN_FLAG}
+          echo "::group::Clean up"
+          plain_remote "rm -rf ${REMOTE_DIR}"
+          echo "::endgroup::"
