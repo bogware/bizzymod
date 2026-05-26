@@ -185,28 +185,33 @@ jobs:
           "
           echo "::endgroup::"
 
-          echo "::group::Full plugin quarantine + nuke stale plugin dirs"
+          echo "::group::Targeted matchmode quarantine + nuke stale plugin dirs"
           # SourceMod auto-loads every .smx in plugins/ AND every subdirectory
-          # of plugins/ EXCEPT folders literally named 'disabled' or 'optional'
-          # (verified against SourceMod PluginSys.cpp source).
+          # of plugins/ EXCEPT folders literally named 'disabled' or 'optional'.
           #
-          # Therefore we must:
-          #  1. Quarantine all .smx from plugins/ root into plugins/disabled/.
-          #  2. Wipe legacy plugins/bizzymod/ if it exists from a prior deploy
-          #     (we moved its contents to plugins/optional/bizzymod/; stale
-          #     files from older deploys would still auto-load otherwise).
-          #  3. Nuke matchmode persistence (match_vote.txt) so confoglcompmod
-          #     can't replay a stale 'last voted mode'.
+          # We deliberately do NOT quarantine the whole plugins/ root anymore —
+          # most of what zonemod ships there is foundational (left4dhooks,
+          # admin-flatfile, basecommands, clientprefs, ...) and the fixes/*
+          # autoloaded plugins REQUIRE left4dhooks to be loaded first. Moving
+          # it to disabled/ broke that load order; 20+ fixes plugins were
+          # failing 'Could not find required plugin left4dhooks'.
+          #
+          # Instead: quarantine ONLY the specific matchmode plugins that lock
+          # the server into Versus rules. Anything else autoloads normally.
+          #
+          # Also wipe a stale plugins/bizzymod/ from prior deploys (those
+          # files used to autoload all the matchmode bizzymod plugins).
           remote "
               PLUG=${REMOTE_TARGET_FOLDER}/left4dead2/addons/sourcemod/plugins
               install -d \\\$PLUG/disabled
               moved=0
-              for f in \\\$PLUG/*.smx; do
-                  [ -e \\\"\\\$f\\\" ] || continue
-                  mv -f \\\"\\\$f\\\" \\\$PLUG/disabled/
-                  moved=\\\$((moved + 1))
+              for f in match_vote.smx confoglcompmod.smx; do
+                  if [ -e \\\"\\\$PLUG/\\\$f\\\" ]; then
+                      mv -f \\\"\\\$PLUG/\\\$f\\\" \\\$PLUG/disabled/
+                      moved=\\\$((moved + 1))
+                  fi
               done
-              echo \\\"Quarantined \\\$moved plugin(s) from plugins/ root\\\"
+              echo \\\"Quarantined \\\$moved matchmode plugin(s)\\\"
 
               # Nuke stale bizzymod/ from before the optional/bizzymod/ move.
               if [ -d \\\$PLUG/bizzymod ]; then
@@ -214,6 +219,7 @@ jobs:
                   echo \\\"Removed stale plugins/bizzymod/ directory\\\"
               fi
 
+              # Match-vote persistence -- prevents confoglcompmod replay.
               rm -f ${REMOTE_TARGET_FOLDER}/left4dead2/addons/sourcemod/data/match_vote.txt
               chown -R ${SRCDS_USER}:${SRCDS_USER} ${REMOTE_TARGET_FOLDER}/left4dead2/addons/sourcemod
           "
