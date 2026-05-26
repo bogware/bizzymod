@@ -92,11 +92,6 @@ jobs:
           SOURCEBANS_PORT:    ${{ vars.SOURCEBANS_PORT }}
           SOURCEBANS_USER:    ${{ vars.SOURCEBANS_USER }}
           SOURCEBANS_PASS:    ${{ secrets.SOURCEBANS_PASS }}
-          BIZZYMOD_STATS_DB:     ${{ vars.BIZZYMOD_STATS_DB }}
-          BIZZYMOD_STATS_DB_IP:  ${{ vars.BIZZYMOD_STATS_DB_IP }}
-          BIZZYMOD_STATS_PORT:   ${{ vars.BIZZYMOD_STATS_PORT }}
-          BIZZYMOD_STATS_USER:   ${{ vars.BIZZYMOD_STATS_USER }}
-          BIZZYMOD_STATS_PASS:   ${{ secrets.BIZZYMOD_STATS_PASS }}
           RCON_PASS:          ${{ secrets.RCON_PASS }}
           SRCDS_USER:         ${{ vars.SRCDS_USER }}
           REMOTE_TARGET_FOLDER: ${{ vars.REMOTE_TARGET_FOLDER }}

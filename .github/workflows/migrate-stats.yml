@@ -1,0 +1,131 @@
+name: Migrate stats DB
+
+# Manual-trigger workflow that:
+#   1. (optionally) creates the `bizzymod_stats` DB on the MySQL host
+#   2. applies the bizzymod-stats schema migrations
+#   3. ports legacy l4d_stats data into the new schema
+#
+# All steps are idempotent. Re-running is safe. Use the dry_run input first
+# to preview without writing.
+#
+# Credentials come from the existing L4DSTATS_* vars/secrets. The DB user
+# must have GRANT ALL on bizzymod_stats.* — run this SQL once on the MySQL
+# host before invoking the workflow:
+#
+#   CREATE DATABASE IF NOT EXISTS bizzymod_stats
+#       CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+#   GRANT ALL ON bizzymod_stats.* TO '<L4DSTATS_USER>'@'%';
+#   FLUSH PRIVILEGES;
+#
+# (The workflow will try CREATE DATABASE itself if your user has the
+# privilege; if not it will fail loudly and you'll need the SQL above.)
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry-run: count rows we would write but don't actually write"
+        type: boolean
+        default: true
+      skip_schema_migrate:
+        description: "Skip running schema migrate.py (use if schema is already applied)"
+        type: boolean
+        default: false
+      skip_legacy_import:
+        description: "Skip importing legacy l4d_stats data (schema-only run)"
+        type: boolean
+        default: false
+
+env:
+  BIZZYMOD_STATS_REF: master   # which ref of bogware/bizzymod-stats to use for schema
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v5
+
+      - name: Checkout bogware/bizzymod-stats (schema + migrate.py)
+        uses: actions/checkout@v5
+        with:
+          repository: bogware/bizzymod-stats
+          ref: ${{ env.BIZZYMOD_STATS_REF }}
+          path: bizzymod-stats
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          # schema/scripts/migrate.py uses mysql-connector-python; .deploy/migrate-legacy-stats.py does too.
+          pip install -r bizzymod-stats/schema/scripts/requirements.txt
+          # Be explicit in case requirements.txt is missing the connector.
+          pip install "mysql-connector-python>=8.0"
+
+      - name: Install MySQL client (for the CREATE DATABASE bootstrap step)
+        run: sudo apt-get update -y && sudo apt-get install -y --no-install-recommends mysql-client
+
+      - name: Bootstrap — ensure bizzymod_stats database exists
+        env:
+          MYSQL_HOST: ${{ vars.L4DSTATS_DB_IP }}
+          MYSQL_PORT: ${{ vars.L4DSTATS_PORT }}
+          MYSQL_USER: ${{ vars.L4DSTATS_USER }}
+          MYSQL_PASS: ${{ secrets.L4DSTATS_PASS }}
+        run: |
+          set -euo pipefail
+          export MYSQL_PWD="${MYSQL_PASS}"
+          # Try to create. If the user lacks CREATE DATABASE privilege this
+          # will fail; we print a hint and exit so the operator does it manually.
+          if ! mysql -h "${MYSQL_HOST}" -P "${MYSQL_PORT}" -u "${MYSQL_USER}" \
+                  -e "CREATE DATABASE IF NOT EXISTS bizzymod_stats CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" 2>/tmp/mysql.err; then
+              echo "::error::Could not CREATE DATABASE bizzymod_stats. Output:"
+              cat /tmp/mysql.err
+              echo ""
+              echo "Run this on the MySQL host manually (as root):"
+              echo "  CREATE DATABASE bizzymod_stats CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+              echo "  GRANT ALL ON bizzymod_stats.* TO '${MYSQL_USER}'@'%';"
+              echo "  FLUSH PRIVILEGES;"
+              exit 1
+          fi
+          # Verify the user can read the new DB.
+          mysql -h "${MYSQL_HOST}" -P "${MYSQL_PORT}" -u "${MYSQL_USER}" \
+                -e "USE bizzymod_stats; SHOW TABLES;" >/dev/null
+          echo "OK: bizzymod_stats exists and the user can access it."
+
+      - name: Apply bizzymod-stats schema migrations
+        if: ${{ !inputs.skip_schema_migrate }}
+        env:
+          MYSQL_HOST: ${{ vars.L4DSTATS_DB_IP }}
+          MYSQL_PORT: ${{ vars.L4DSTATS_PORT }}
+          MYSQL_USER: ${{ vars.L4DSTATS_USER }}
+          MYSQL_PASS: ${{ secrets.L4DSTATS_PASS }}
+        run: |
+          set -euo pipefail
+          python bizzymod-stats/schema/scripts/migrate.py \
+            --host "${MYSQL_HOST}" --port "${MYSQL_PORT}" \
+            --user "${MYSQL_USER}" --password "${MYSQL_PASS}" \
+            --database bizzymod_stats
+
+      - name: Import legacy l4d_stats data (idempotent)
+        if: ${{ !inputs.skip_legacy_import }}
+        env:
+          MYSQL_HOST:    ${{ vars.L4DSTATS_DB_IP }}
+          MYSQL_PORT:    ${{ vars.L4DSTATS_PORT }}
+          MYSQL_USER:    ${{ vars.L4DSTATS_USER }}
+          MYSQL_PASS:    ${{ secrets.L4DSTATS_PASS }}
+          LEGACY_DB:     ${{ vars.L4DSTATS_DB }}
+          DRY_RUN_FLAG:  ${{ inputs.dry_run && '--dry-run' || '' }}
+        run: |
+          set -euo pipefail
+          python .deploy/migrate-legacy-stats.py \
+            --host "${MYSQL_HOST}" --port "${MYSQL_PORT}" \
+            --user "${MYSQL_USER}" --password "${MYSQL_PASS}" \
+            --legacy-db "${LEGACY_DB}" --new-db bizzymod_stats \
+            ${DRY_RUN_FLAG}
