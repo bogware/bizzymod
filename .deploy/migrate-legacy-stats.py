@@ -196,7 +196,7 @@ def migrate_players(legacy_cur, new_cur, server_id: int, award_lut: dict[str, in
 
         # Fetch back ids for the steamids we just upserted.
         steamids = [p[0] for p in player_inserts]
-        if steamids:
+        if steamids and not dry_run:
             placeholders = ",".join(["%s"] * len(steamids))
             new_cur.execute(
                 f"SELECT id, steamid FROM players WHERE steamid IN ({placeholders})",
@@ -204,6 +204,11 @@ def migrate_players(legacy_cur, new_cur, server_id: int, award_lut: dict[str, in
             )
             for pid, sid in new_cur.fetchall():
                 steamid_to_id[sid] = pid
+        elif dry_run:
+            # In dry-run we don't insert players, so the SELECT returns nothing.
+            # Use a synthetic stable id so Phase 2 still iterates + counts rows.
+            for sid in steamids:
+                steamid_to_id.setdefault(sid, -1)
 
         # Phase 2: per-player derived rows.
         for r in batch_rows:
