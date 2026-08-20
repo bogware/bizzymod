@@ -63,7 +63,11 @@ jobs:
       - name: Compile Bizzymod plugins
         run: |
           chmod +x .deploy/build-plugins.sh
-          .deploy/build-plugins.sh
+          # BUILD_STRICT=1 => any compile failure (or a non-allowlisted plugin
+          # with no .sp) fails the deploy instead of silently shipping a stale
+          # or placeholder .smx. SuperVersus/Survivor_Legs are allowlisted in
+          # build-plugins.sh (NOSRC_ALLOW) as intentional committed binaries.
+          BUILD_STRICT=1 .deploy/build-plugins.sh
 
       # ----------------------------------------------------------------------
       - name: Download SirPlease zonemod Linux release tarball
@@ -228,6 +232,13 @@ jobs:
                   fi
               done
               echo \\\"Quarantined \\\$moved matchmode plugin(s)\\\"
+
+              # Quarantine fixes/ plugins that fail to load on the current L4D2
+              # engine (sig no longer resolves) and are not needed for coop:
+              #   l4d2_hltv_crash_fix - SourceTV crash fix; sig broken + SourceTV off.
+              for f in l4d2_hltv_crash_fix.smx; do
+                  if [ -e \\\"\\\$PLUG/fixes/\\\$f\\\" ]; then mv -f \\\"\\\$PLUG/fixes/\\\$f\\\" \\\$PLUG/disabled/; fi
+              done
 
               # Nuke stale bizzymod/ from before the optional/bizzymod/ move.
               if [ -d \\\$PLUG/bizzymod ]; then
