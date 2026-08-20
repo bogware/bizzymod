@@ -1,19 +1,17 @@
 name: Deploy
 
 on:
+  # Deploys are MANUAL ONLY. The automatic push-to-main trigger is intentionally
+  # disabled so that merging a PR can never auto-deploy and overwrite the live
+  # server with empty token substitutions before the GitHub secrets/variables
+  # are populated. To deploy: Actions tab -> Deploy -> "Run workflow"
+  # (or: gh workflow run deploy.yml).
   workflow_dispatch:
     inputs:
       skip_steam_update:
         description: "Skip steamcmd app_update (default true; Valve blocks anonymous L4D2 installs, so this only runs when STEAM_USER/STEAM_PASS secrets are set)"
         type: boolean
         default: true
-  push:
-    branches: [main]
-    paths-ignore:
-      - "**/*.md"
-      - ".github/**"
-      - ".cicd/**"
-      - "guide/**"
 
 # Only one deploy at a time. Cancel any in-flight deploy when a new one starts.
 concurrency:
