@@ -84,7 +84,15 @@ stock void Bizzy_TankWitch_TankSpawn(int tankClient)
     g_Tanks[slot].lastY = RoundToFloor(pos[1]);
     g_Tanks[slot].lastZ = RoundToFloor(pos[2]);
 
-    if (g_DB == null || g_ServerId == 0) return;
+    // Guard against tank_records.fk_tr_map FK violation: the maps row this
+    // map_id references must exist. g_CurrentMapId is resolved async (map
+    // upsert + id lookup) so there's a window — fresh server boot, plugin
+    // hot-reload mid-map, or first tank of a new map before resolution
+    // completes — when g_CurrentMapId is 0 or stale. The identity module
+    // also re-resolves on OnServerLookup (covers DB-late-connect), but this
+    // guard makes the failure mode "lose this one record" instead of
+    // "FK error in errors_*.log". See bogware/bizzymod-stats#5.
+    if (g_DB == null || g_ServerId == 0 || g_CurrentMapId == 0) return;
     char sql[384];
     FormatEx(sql, sizeof sql,
         "INSERT INTO tank_records (server_id, match_round_id, map_id, spawned_at) "
@@ -285,7 +293,8 @@ stock void Bizzy_TankWitch_WitchSpawn(int witchEnt)
     g_Witches[slot].incappedUid = 0;
     g_Witches[slot].state = 0;
 
-    if (g_DB == null || g_ServerId == 0) return;
+    // Same FK guard as tank spawn — witch_records also FKs to maps.id.
+    if (g_DB == null || g_ServerId == 0 || g_CurrentMapId == 0) return;
     char sql[384];
     FormatEx(sql, sizeof sql,
         "INSERT INTO witch_records (server_id, match_round_id, map_id, seen_at, outcome) "

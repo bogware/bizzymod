@@ -51,6 +51,14 @@ static void OnServerLookup(Database db, DBResultSet rs, const char[] error, any 
     g_ServerId = rs.FetchInt(0);
     LogMessage("[bizzymod-stats] online as server_id=%d (key=%s)", g_ServerId, g_ServerKey);
 
+    // Resolve map_id now in case the DB connected mid-map (server boot
+    // with a map already loaded, or plugin hot-reload). OnMapStart only
+    // fires on actual transitions, so without this hook g_CurrentMapId
+    // would stay 0 until the next map change — and any tank / witch /
+    // crescendo / wave insert in the meantime would FK-violate against
+    // maps.id. See bogware/bizzymod-stats#5.
+    Bizzy_Identity_ResolveMap();
+
     // Now safe to backfill any sessions for players already connected
     // (covers hot-reload).
     for (int i = 1; i <= MaxClients; i++)
@@ -177,7 +185,15 @@ static void OnPlayerLookup(Database db, DBResultSet rs, const char[] error, Data
 
 stock void Bizzy_Identity_ResolveMap()
 {
-    if (g_DB == null || g_CurrentMap[0] == '\0') return;
+    if (g_DB == null) return;
+    // Refresh from the engine every call. OnMapStart sets g_CurrentMap on
+    // every map change, but if this is called from the DB-ready callback
+    // (handling hot reload / late connect) OnMapStart may not have fired
+    // yet on this plugin instance — in which case g_CurrentMap is empty
+    // and we'd no-op. Reading from GetCurrentMap directly is safe and
+    // idempotent. See bogware/bizzymod-stats#5.
+    GetCurrentMap(g_CurrentMap, sizeof g_CurrentMap);
+    if (g_CurrentMap[0] == '\0') return;
     char esc[260];
     Bizzy_DB_Escape(g_CurrentMap, esc, sizeof esc);
     char sql[512];

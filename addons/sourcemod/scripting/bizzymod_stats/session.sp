@@ -87,7 +87,17 @@ stock void Bizzy_Session_Flush(int client, int duration)
         g_Clients[client].killStreakMax = g_Clients[client].killStreak;
 
     // 1) Upsert rollup row in player_stats.
-    char sql[2048];
+    //
+    // Buffer sized for the worst-case post-substitution length of every
+    // FormatEx call in this function. The biggest one is this player_stats
+    // upsert with ~35 columns + matching ON DUPLICATE KEY UPDATE clause; at
+    // 2048 it silently truncated mid-statement (errors like
+    // `Unknown column 'damage_to_ta'` / `'VALUES'` cut to `'VALUE'`/`'V'`),
+    // producing MySQL syntax errors and dropping the whole transaction.
+    // See bogware/bizzymod-stats#5. Long-term fix is parameterized queries
+    // (no string-build). For now: large fixed buffer + the truncation
+    // guard in Bizzy_DB_AssertQueryLen below.
+    char sql[4096];
     FormatEx(sql, sizeof sql,
         "INSERT INTO player_stats "
         ... "(player_id, gamemode_id, difficulty_id, server_id, "
