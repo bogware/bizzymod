@@ -231,10 +231,12 @@ jobs:
               done
               echo \\\"Quarantined \\\$moved matchmode plugin(s)\\\"
 
-              # Quarantine fixes/ plugins that fail to load on the current L4D2
-              # engine (sig no longer resolves) and are not needed for coop:
-              #   l4d2_hltv_crash_fix - SourceTV crash fix; sig broken + SourceTV off.
-              for f in l4d2_hltv_crash_fix.smx; do
+              # Quarantine fixes/ plugins not wanted on this coop server:
+              #   l4d2_hltv_crash_fix    - SourceTV crash fix; sig broken + SourceTV off.
+              #   l4d2_tank_flying_incap - competitive "tank punch sends the incapped
+              #     survivor flying" mechanic (Sir/Forgetest). Unwanted on coop Expert,
+              #     where every incapping tank punch launches the survivor across the area.
+              for f in l4d2_hltv_crash_fix.smx l4d2_tank_flying_incap.smx; do
                   if [ -e \\\"\\\$PLUG/fixes/\\\$f\\\" ]; then mv -f \\\"\\\$PLUG/fixes/\\\$f\\\" \\\$PLUG/disabled/; fi
               done
 
