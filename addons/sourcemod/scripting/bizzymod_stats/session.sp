@@ -180,13 +180,17 @@ stock void Bizzy_Session_Flush(int client, int duration)
         g_Clients[client].distanceUnits);
     txn.AddQuery(sql);
 
-    // 1b) Career bests — single-row GREATEST update per player.
+    // 1b) Career bests — single-row GREATEST update per player. most_points_in_session
+    // is clamped to >=0 in the INSERT: pointsThisSession can go negative (griefing / FF with
+    // negative_score on) but the column is INT UNSIGNED, so a negative is rejected by MySQL
+    // and drops the entire flush transaction. A negative career "best" is meaningless anyway.
+    // See bogware/bizzymod-stats#7.
     FormatEx(sql, sizeof sql,
         "INSERT INTO career_bests "
         ... "(player_id, most_points_in_session, most_kills_in_session, "
         ... " most_headshots_in_session, longest_kill_streak, "
         ... " biggest_tank_punch_damage) "
-        ... "VALUES (%d, %d, %d, %d, %d, %d) "
+        ... "VALUES (%d, GREATEST(0, %d), %d, %d, %d, %d) "
         ... "ON DUPLICATE KEY UPDATE "
         ... " most_points_in_session    = GREATEST(most_points_in_session,    VALUES(most_points_in_session)), "
         ... " most_kills_in_session     = GREATEST(most_kills_in_session,     VALUES(most_kills_in_session)), "
