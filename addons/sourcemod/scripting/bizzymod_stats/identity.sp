@@ -3,11 +3,14 @@
  * `weapons`. Caches IDs in memory so the hot path never re-queries.
  *
  * Server identity is bootstrapped via a stable key stored in
- * cfg/sourcemod/bizzymod_stats.server_key. If absent we generate one on first
- * run and write it back.
+ * addons/sourcemod/data/bizzymod_stats.server_key. If absent we generate one
+ * on first run and write it back. (data/ is used because BuildPath(Path_SM)
+ * roots at addons/sourcemod/ and data/ always exists + is writable; the old
+ * "cfg/sourcemod/" path resolved to a nonexistent addons/sourcemod/cfg/sourcemod/,
+ * so the write failed and the key + server_id churned every boot. See #6.)
  */
 
-#define BIZZY_KEYFILE "cfg/sourcemod/bizzymod_stats.server_key"
+#define BIZZY_KEYFILE "data/bizzymod_stats.server_key"
 
 void Bizzy_Identity_EnsureServer()
 {
