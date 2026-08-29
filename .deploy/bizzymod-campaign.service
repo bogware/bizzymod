@@ -1,0 +1,23 @@
+[Unit]
+Description=Bizzymod Campaign L4D2 Dedicated Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=campaign
+Group=campaign
+Environment=HOME=/home/campaign
+WorkingDirectory=/home/campaign/Steam/steamapps/common/l4d2
+ExecStart=/home/campaign/srcds-launch.sh
+# srcds_run is launched with -norestart, so systemd owns restart policy.
+Restart=on-failure
+RestartSec=10
+KillMode=control-group
+KillSignal=SIGINT
+TimeoutStopSec=25
+# srcds writes a lot; give it room and don't let a hung stop wedge boot.
+LimitNOFILE=8192
+
+[Install]
+WantedBy=multi-user.target

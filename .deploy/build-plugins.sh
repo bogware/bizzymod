@@ -27,6 +27,15 @@ BIZZY_PLUGINS="${ROOT}/addons/sourcemod/plugins/optional/bizzymod"
 BIZZY_SCRIPTING="${ROOT}/addons/sourcemod/scripting"
 ZONE_SCRIPTING="${ROOT}/zonemod/addons/sourcemod/scripting"
 
+# Committed binaries we intentionally ship WITHOUT source (cannot be rebuilt on
+# the pinned SM 1.12). Any OTHER manifest .smx lacking a .sp is a FATAL error so
+# a placeholder/stale binary can never ship silently.
+#   l4d_superversus  - "Super Versus Reloaded 1.8.15.5", SM 1.7 build, no public
+#                      source; it is the exact legacy binary and works (sigs
+#                      resolve). Kept deliberately (operator decision).
+#   Survivor_Legs    - SM 1.9 build, cosmetic first-person legs, no source.
+NOSRC_ALLOW="l4d_superversus Survivor_Legs"
+
 if ! command -v spcomp >/dev/null 2>&1; then
     echo "build-plugins: spcomp not on PATH." >&2
     echo "build-plugins: did the workflow's setup-sp step run?" >&2
@@ -71,7 +80,15 @@ for smx in "${BIZZY_PLUGINS}"/*.smx; do
     sp="${WORK}/${base}.sp"
 
     if [[ ! -f "${sp}" ]]; then
-        echo "  skip: ${base}.smx has no matching ${base}.sp in merged tree"
+        # Allowlisted no-source binary? keep it. Otherwise it's fatal so a
+        # placeholder/stale .smx can never ship for a loaded plugin.
+        if [[ " ${NOSRC_ALLOW} " == *" ${base} "* ]]; then
+            echo "  keep (no .sp, allowlisted committed binary): ${base}.smx"
+            continue
+        fi
+        echo "  FATAL: ${base}.smx has no matching ${base}.sp and is not in NOSRC_ALLOW" >&2
+        failed=$((failed + 1))
+        fail_list+=("${base}")
         continue
     fi
 

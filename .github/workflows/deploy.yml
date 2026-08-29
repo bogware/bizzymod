@@ -1,19 +1,17 @@
 name: Deploy
 
 on:
+  # Deploys are MANUAL ONLY. The automatic push-to-main trigger is intentionally
+  # disabled so that merging a PR can never auto-deploy and overwrite the live
+  # server with empty token substitutions before the GitHub secrets/variables
+  # are populated. To deploy: Actions tab -> Deploy -> "Run workflow"
+  # (or: gh workflow run deploy.yml).
   workflow_dispatch:
     inputs:
       skip_steam_update:
-        description: "Skip steamcmd app_update on the server (faster redeploys when L4D2 hasn't changed)"
+        description: "Skip steamcmd app_update (default true; Valve blocks anonymous L4D2 installs, so this only runs when STEAM_USER/STEAM_PASS secrets are set)"
         type: boolean
-        default: false
-  push:
-    branches: [main]
-    paths-ignore:
-      - "**/*.md"
-      - ".github/**"
-      - ".cicd/**"
-      - "guide/**"
+        default: true
 
 # Only one deploy at a time. Cancel any in-flight deploy when a new one starts.
 concurrency:
@@ -63,7 +61,11 @@ jobs:
       - name: Compile Bizzymod plugins
         run: |
           chmod +x .deploy/build-plugins.sh
-          .deploy/build-plugins.sh
+          # BUILD_STRICT=1 => any compile failure (or a non-allowlisted plugin
+          # with no .sp) fails the deploy instead of silently shipping a stale
+          # or placeholder .smx. SuperVersus/Survivor_Legs are allowlisted in
+          # build-plugins.sh (NOSRC_ALLOW) as intentional committed binaries.
+          BUILD_STRICT=1 .deploy/build-plugins.sh
 
       # ----------------------------------------------------------------------
       - name: Download SirPlease zonemod Linux release tarball
@@ -125,6 +127,11 @@ jobs:
           INIT_PATH:            ${{ vars.INIT_PATH }}
           L4D2_APPID:           ${{ env.L4D2_APPID }}
           SKIP_STEAM_UPDATE:    ${{ inputs.skip_steam_update }}
+          # Optional: set these repo secrets to enable the per-deploy steam
+          # validate. Anonymous L4D2 installs are Valve-blocked ("Invalid
+          # platform"), so without an account the steam step is skipped.
+          STEAM_USER:           ${{ secrets.STEAM_USER }}
+          STEAM_PASS:           ${{ secrets.STEAM_PASS }}
         run: |
           set -euo pipefail
 
@@ -156,13 +163,22 @@ jobs:
           "
           echo "::endgroup::"
 
-          if [[ "${SKIP_STEAM_UPDATE}" != "true" ]]; then
-              echo "::group::steamcmd app_update ${L4D2_APPID}"
+          # Valve BLOCKS anonymous L4D2 dedicated-server installs ("Invalid
+          # platform"), so the base game is installed out-of-band with a real
+          # Steam account (see DEPLOY.md) and this per-deploy validate is
+          # skipped by default. To enable it, set the STEAM_USER + STEAM_PASS
+          # repo secrets (an account that owns L4D2; Steam Guard must be handled
+          # non-interactively via a shared secret / steamguard-cli) and run with
+          # skip_steam_update=false.
+          if [[ "${SKIP_STEAM_UPDATE}" != "true" && -n "${STEAM_USER:-}" ]]; then
+              echo "::group::steamcmd app_update ${L4D2_APPID} (account login)"
               # steamcmd runs as the srcds user, no sudo needed.
               SSHPASS="${SSHPASS}" sshpass -e ssh -o StrictHostKeyChecking=yes -p "${SSH_PORT}" "${SSH_USER}@${SSH_HOST}" "
-                  sudo -S -p '' -u ${SRCDS_USER} -H bash -lc \"/home/${SRCDS_USER}/steamcmd/steamcmd.sh +force_install_dir ${REMOTE_TARGET_FOLDER} +login anonymous +app_update ${L4D2_APPID} validate +quit\"
+                  sudo -S -p '' -u ${SRCDS_USER} -H bash -lc \"/home/${SRCDS_USER}/steamcmd/steamcmd.sh +@sSteamCmdForcePlatformType linux +force_install_dir ${REMOTE_TARGET_FOLDER} +login ${STEAM_USER} ${STEAM_PASS} +app_update ${L4D2_APPID} validate +quit\"
               " <<< "${SUDO_PASS}"
               echo "::endgroup::"
+          else
+              echo "steamcmd app_update SKIPPED (anonymous is Valve-blocked; set STEAM_USER/STEAM_PASS secrets + skip_steam_update=false to enable per-deploy validate)."
           fi
 
           echo "::group::Rsync zonemod overlay (laid down first)"
@@ -197,7 +213,9 @@ jobs:
           # failing 'Could not find required plugin left4dhooks'.
           #
           # Instead: quarantine ONLY the specific matchmode plugins that lock
-          # the server into Versus rules. Anything else autoloads normally.
+          # the server into Versus rules, PLUS reservedslots (which reserves/
+          # hides slots and interferes with opening survivor slots 5-16 on a
+          # coop +4 server). Anything else autoloads normally.
           #
           # Also wipe a stale plugins/bizzymod/ from prior deploys (those
           # files used to autoload all the matchmode bizzymod plugins).
@@ -205,13 +223,22 @@ jobs:
               PLUG=${REMOTE_TARGET_FOLDER}/left4dead2/addons/sourcemod/plugins
               install -d \\\$PLUG/disabled
               moved=0
-              for f in match_vote.smx confoglcompmod.smx; do
+              for f in match_vote.smx confoglcompmod.smx reservedslots.smx; do
                   if [ -e \\\"\\\$PLUG/\\\$f\\\" ]; then
                       mv -f \\\"\\\$PLUG/\\\$f\\\" \\\$PLUG/disabled/
                       moved=\\\$((moved + 1))
                   fi
               done
               echo \\\"Quarantined \\\$moved matchmode plugin(s)\\\"
+
+              # Quarantine fixes/ plugins not wanted on this coop server:
+              #   l4d2_hltv_crash_fix    - SourceTV crash fix; sig broken + SourceTV off.
+              #   l4d2_tank_flying_incap - competitive "tank punch sends the incapped
+              #     survivor flying" mechanic (Sir/Forgetest). Unwanted on coop Expert,
+              #     where every incapping tank punch launches the survivor across the area.
+              for f in l4d2_hltv_crash_fix.smx l4d2_tank_flying_incap.smx; do
+                  if [ -e \\\"\\\$PLUG/fixes/\\\$f\\\" ]; then mv -f \\\"\\\$PLUG/fixes/\\\$f\\\" \\\$PLUG/disabled/; fi
+              done
 
               # Nuke stale bizzymod/ from before the optional/bizzymod/ move.
               if [ -d \\\$PLUG/bizzymod ]; then

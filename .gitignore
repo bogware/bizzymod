@@ -32,3 +32,6 @@ $RECYCLE.BIN/
 /tmp_spcomp_*/
 
 legacy/
+# Untracked reference snapshot of the known-good legacy overlay (carries its
+# own l4dtoolz/metamod). Kept locally as reference; never deployed/committed.
+older-legacy/
