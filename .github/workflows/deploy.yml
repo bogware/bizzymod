@@ -1,89 +1,140 @@
 name: Deploy
 
 on:
-  # Deploys are MANUAL ONLY. The automatic push-to-main trigger is intentionally
-  # disabled so that merging a PR can never auto-deploy and overwrite the live
-  # server with empty token substitutions before the GitHub secrets/variables
-  # are populated. To deploy: Actions tab -> Deploy -> "Run workflow"
-  # (or: gh workflow run deploy.yml).
+  # MANUAL ONLY. No push trigger — merging a PR never auto-deploys. Pick the
+  # server (game mode) and the environment (dev/prod) when you run it.
+  #   Actions -> Deploy -> Run workflow   (or: gh workflow run deploy.yml -f server=campaign -f environment=dev)
   workflow_dispatch:
     inputs:
+      server:
+        description: "Which server (game mode) to deploy"
+        type: choice
+        options:
+          - campaign
+        # competitive / vanilla get added here once servers/<name>/ is populated.
+        default: campaign
+      environment:
+        description: "Target environment (selects the GitHub Environment <server>-<environment>)"
+        type: choice
+        options:
+          - dev
+          - prod
+        default: dev
       skip_steam_update:
-        description: "Skip steamcmd app_update (default true; Valve blocks anonymous L4D2 installs, so this only runs when STEAM_USER/STEAM_PASS secrets are set)"
+        description: "Skip steamcmd app_update (anonymous L4D2 installs are Valve-blocked; only runs when STEAM_USER/STEAM_PASS secrets are set)"
         type: boolean
         default: true
 
-# Only one deploy at a time. Cancel any in-flight deploy when a new one starts.
+# One deploy per (server, environment) at a time.
 concurrency:
-  group: deploy-${{ github.ref }}
+  group: deploy-${{ inputs.server }}-${{ inputs.environment }}
   cancel-in-progress: false
 
 env:
-  ZONEMOD_RELEASE_TAG: v1.0.0                  # SirPlease L4D2-Competitive-Rework release to lay down first
   L4D2_APPID: "222860"
-  # SourceMod compile root is provided by the rumblefrog/setup-sp action below,
-  # pinned to 1.12.x to match what zonemod v1.0.0 ships at addons/sourcemod/bin/.
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
-    environment: production
+    # Self-hosted Linux runner (bogware). Build + deploy both run here; it is the
+    # box with SSH reach to the game servers. Required tools are checked below.
+    runs-on: [self-hosted, Linux]
+    # Per-target secrets/vars live in the GitHub Environment "<server>-<environment>"
+    # (e.g. campaign-prod, campaign-dev). See DEPLOY.md.
+    environment: ${{ inputs.server }}-${{ inputs.environment }}
     timeout-minutes: 30
 
     steps:
       # ----------------------------------------------------------------------
-      - name: Checkout this repo (includes vendored SourceMod compiler tree)
+      - name: Checkout monorepo
         uses: actions/checkout@v5
         with:
           lfs: false
 
-      - name: Checkout SirPlease/L4D2-Competitive-Rework (for SourcePawn deps)
+      # ----------------------------------------------------------------------
+      - name: Load per-server manifest (servers/<server>/deploy.env)
+        id: manifest
+        run: |
+          set -euo pipefail
+          SERVER="${{ inputs.server }}"
+          SRV_DIR="servers/${SERVER}"
+          [ -d "${SRV_DIR}" ]            || { echo "::error::Unknown server '${SERVER}' — no ${SRV_DIR}/ in the repo."; exit 1; }
+          [ -f "${SRV_DIR}/deploy.env" ] || { echo "::error::${SRV_DIR}/deploy.env is missing (each server needs one)."; exit 1; }
+          # Source the manifest and re-export its knobs to later steps.
+          set -a; . "${SRV_DIR}/deploy.env"; set +a
+          {
+            echo "server_dir=${SRV_DIR}"
+            echo "apply_zonemod=${APPLY_ZONEMOD_OVERLAY:-false}"
+            echo "zonemod_tag=${ZONEMOD_RELEASE_TAG:-}"
+            echo "quarantine_matchmode=${QUARANTINE_MATCHMODE:-false}"
+            echo "quarantine_fixes=${QUARANTINE_FIXES:-}"
+            echo "sourcemod_version=${SOURCEMOD_VERSION:-1.12.x}"
+          } >> "${GITHUB_OUTPUT}"
+          echo "Deploying '${SERVER}' from ${SRV_DIR} (zonemod=${APPLY_ZONEMOD_OVERLAY:-false})"
+
+      # ----------------------------------------------------------------------
+      - name: Verify runner has the required tools
+        run: |
+          set -euo pipefail
+          # The self-hosted runner needs these preinstalled (it may not have
+          # passwordless sudo, so we do NOT try to apt-get them here).
+          missing=()
+          for c in sshpass rsync curl tar ssh ssh-keyscan; do
+            command -v "$c" >/dev/null 2>&1 || missing+=("$c")
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Self-hosted runner is missing: ${missing[*]}. Install once on the runner host: sudo apt-get install -y sshpass rsync curl tar openssh-client"
+            exit 1
+          fi
+          echo "Runner tools OK."
+
+      # ----------------------------------------------------------------------
+      - name: Checkout zonemod source (SourcePawn deps) — servers that use it
+        if: steps.manifest.outputs.apply_zonemod == 'true'
         uses: actions/checkout@v5
         with:
           repository: SirPlease/L4D2-Competitive-Rework
-          ref: ${{ env.ZONEMOD_RELEASE_TAG }}
+          ref: ${{ steps.manifest.outputs.zonemod_tag }}
           path: zonemod
 
       # ----------------------------------------------------------------------
-      - name: Install build & deploy dependencies (sshpass, rsync)
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y --no-install-recommends sshpass rsync openssh-client
-
-      # ----------------------------------------------------------------------
-      - name: Setup SourcePawn compiler (SM 1.12 — match zonemod runtime)
+      - name: Setup SourcePawn compiler (match server's SourceMod line)
         uses: rumblefrog/setup-sp@master
         with:
-          version: '1.12.x'
+          version: ${{ steps.manifest.outputs.sourcemod_version }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       # ----------------------------------------------------------------------
-      - name: Compile Bizzymod plugins
+      - name: Compile this server's Bizzymod plugins
         run: |
           chmod +x .deploy/build-plugins.sh
           # BUILD_STRICT=1 => any compile failure (or a non-allowlisted plugin
-          # with no .sp) fails the deploy instead of silently shipping a stale
-          # or placeholder .smx. SuperVersus/Survivor_Legs are allowlisted in
-          # build-plugins.sh (NOSRC_ALLOW) as intentional committed binaries.
-          BUILD_STRICT=1 .deploy/build-plugins.sh
+          # with no .sp) fails the deploy instead of shipping a stale/placeholder .smx.
+          BUILD_STRICT=1 .deploy/build-plugins.sh "${{ steps.manifest.outputs.server_dir }}"
 
       # ----------------------------------------------------------------------
-      - name: Download SirPlease zonemod Linux release tarball
+      - name: Download zonemod Linux overlay — servers that use it
+        if: steps.manifest.outputs.apply_zonemod == 'true'
         run: |
           set -euo pipefail
-          url="https://github.com/SirPlease/L4D2-Competitive-Rework/releases/download/${ZONEMOD_RELEASE_TAG}/L4D2-Competitive-Rework-${ZONEMOD_RELEASE_TAG}-linux.tar.gz"
+          TAG="${{ steps.manifest.outputs.zonemod_tag }}"
+          url="https://github.com/SirPlease/L4D2-Competitive-Rework/releases/download/${TAG}/L4D2-Competitive-Rework-${TAG}-linux.tar.gz"
           echo "Downloading ${url}"
           mkdir -p _zonemod_overlay
           curl -fSL "${url}" | tar -xz -C _zonemod_overlay
-          echo "--- top of zonemod overlay ---"
           ls -la _zonemod_overlay | head -20
 
       # ----------------------------------------------------------------------
-      - name: Token-replace #{...}# in **/*.cfg
+      - name: Token-replace #{...}# in this server's cfgs
         env:
+          # Per-environment identity (from the GitHub Environment):
           SERVER_NAME:        ${{ vars.SERVER_NAME }}
           HOST_BANNER:        ${{ vars.HOST_BANNER }}
           HOST_MOTD:          ${{ vars.HOST_MOTD }}
+          RCON_PASS:          ${{ secrets.RCON_PASS }}
+          SRCDS_USER:         ${{ vars.SRCDS_USER }}
+          REMOTE_TARGET_FOLDER: ${{ vars.REMOTE_TARGET_FOLDER }}
+          INIT_PATH:          ${{ vars.INIT_PATH }}
+          # Shared DB creds (repo-level — every server/env reports to the same DBs):
           L4DSTATS_DB:        ${{ vars.L4DSTATS_DB }}
           L4DSTATS_DB_IP:     ${{ vars.L4DSTATS_DB_IP }}
           L4DSTATS_PORT:      ${{ vars.L4DSTATS_PORT }}
@@ -94,28 +145,23 @@ jobs:
           SOURCEBANS_PORT:    ${{ vars.SOURCEBANS_PORT }}
           SOURCEBANS_USER:    ${{ vars.SOURCEBANS_USER }}
           SOURCEBANS_PASS:    ${{ secrets.SOURCEBANS_PASS }}
-          RCON_PASS:          ${{ secrets.RCON_PASS }}
-          SRCDS_USER:         ${{ vars.SRCDS_USER }}
-          REMOTE_TARGET_FOLDER: ${{ vars.REMOTE_TARGET_FOLDER }}
-          INIT_PATH:          ${{ vars.INIT_PATH }}
         run: |
           chmod +x .deploy/replace-tokens.sh
-          .deploy/replace-tokens.sh .
+          .deploy/replace-tokens.sh "${{ steps.manifest.outputs.server_dir }}"
 
       # ----------------------------------------------------------------------
       - name: Prepare SSH (password auth via sshpass)
         env:
-          SSH_HOST:     ${{ secrets.SSH_HOST }}
-          SSH_PORT:     ${{ vars.SSH_PORT || '22' }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ vars.SSH_PORT || '22' }}
         run: |
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-          # Trust the host's key on first contact, then pin it.
           ssh-keyscan -p "${SSH_PORT}" -H "${SSH_HOST}" >> ~/.ssh/known_hosts 2>/dev/null
           chmod 600 ~/.ssh/known_hosts
 
       # ----------------------------------------------------------------------
-      - name: Stop server, sync logs, refresh L4D2, deploy overlay, restart
+      - name: Stop server, sync logs, (optional) refresh L4D2, deploy, restart
         env:
           SSHPASS:              ${{ secrets.SSH_PASSWORD }}
           SUDO_PASS:            ${{ secrets.SUDO_PASSWORD }}
@@ -127,27 +173,20 @@ jobs:
           INIT_PATH:            ${{ vars.INIT_PATH }}
           L4D2_APPID:           ${{ env.L4D2_APPID }}
           SKIP_STEAM_UPDATE:    ${{ inputs.skip_steam_update }}
-          # Optional: set these repo secrets to enable the per-deploy steam
-          # validate. Anonymous L4D2 installs are Valve-blocked ("Invalid
-          # platform"), so without an account the steam step is skipped.
           STEAM_USER:           ${{ secrets.STEAM_USER }}
           STEAM_PASS:           ${{ secrets.STEAM_PASS }}
+          SERVER_DIR:           ${{ steps.manifest.outputs.server_dir }}
+          APPLY_ZONEMOD:        ${{ steps.manifest.outputs.apply_zonemod }}
+          QUARANTINE_MATCHMODE: ${{ steps.manifest.outputs.quarantine_matchmode }}
+          QUARANTINE_FIXES:     ${{ steps.manifest.outputs.quarantine_fixes }}
         run: |
           set -euo pipefail
 
-          SSH="sshpass -e ssh -o StrictHostKeyChecking=yes -p ${SSH_PORT} ${SSH_USER}@${SSH_HOST}"
-          RSYNC_RSH="sshpass -e ssh -o StrictHostKeyChecking=yes -p ${SSH_PORT}"
-
           remote() {
-              # SSH auth uses SSH_PASSWORD (SSHPASS env). The sudo password is
-              # fed to remote 'sudo -S -p ""' via stdin heredoc, so it never
-              # appears on the command line / process list.
+              # SSH auth uses SSH_PASSWORD (SSHPASS env). The sudo password is fed
+              # to remote 'sudo -S -p ""' via stdin so it never hits the cmdline.
               SSHPASS="${SSHPASS}" sshpass -e ssh -o StrictHostKeyChecking=yes -p "${SSH_PORT}" "${SSH_USER}@${SSH_HOST}" \
                   "sudo -S -p '' bash -lc \"$1\"" <<< "${SUDO_PASS}"
-          }
-
-          plain_remote() {
-              SSHPASS="${SSHPASS}" sshpass -e ssh -o StrictHostKeyChecking=yes -p "${SSH_PORT}" "${SSH_USER}@${SSH_HOST}" "$1"
           }
 
           echo "::group::Stop server (${INIT_PATH} stop)"
@@ -163,109 +202,87 @@ jobs:
           "
           echo "::endgroup::"
 
-          # Valve BLOCKS anonymous L4D2 dedicated-server installs ("Invalid
-          # platform"), so the base game is installed out-of-band with a real
-          # Steam account (see DEPLOY.md) and this per-deploy validate is
-          # skipped by default. To enable it, set the STEAM_USER + STEAM_PASS
-          # repo secrets (an account that owns L4D2; Steam Guard must be handled
-          # non-interactively via a shared secret / steamguard-cli) and run with
-          # skip_steam_update=false.
+          # Valve blocks anonymous L4D2 dedicated installs; the base game is
+          # installed out-of-band (see DEPLOY.md) and this validate is skipped
+          # unless STEAM_USER/STEAM_PASS are set and skip_steam_update=false.
           if [[ "${SKIP_STEAM_UPDATE}" != "true" && -n "${STEAM_USER:-}" ]]; then
-              echo "::group::steamcmd app_update ${L4D2_APPID} (account login)"
-              # steamcmd runs as the srcds user, no sudo needed.
+              echo "::group::steamcmd app_update ${L4D2_APPID}"
               SSHPASS="${SSHPASS}" sshpass -e ssh -o StrictHostKeyChecking=yes -p "${SSH_PORT}" "${SSH_USER}@${SSH_HOST}" "
                   sudo -S -p '' -u ${SRCDS_USER} -H bash -lc \"/home/${SRCDS_USER}/steamcmd/steamcmd.sh +@sSteamCmdForcePlatformType linux +force_install_dir ${REMOTE_TARGET_FOLDER} +login ${STEAM_USER} ${STEAM_PASS} +app_update ${L4D2_APPID} validate +quit\"
               " <<< "${SUDO_PASS}"
               echo "::endgroup::"
           else
-              echo "steamcmd app_update SKIPPED (anonymous is Valve-blocked; set STEAM_USER/STEAM_PASS secrets + skip_steam_update=false to enable per-deploy validate)."
+              echo "steamcmd app_update SKIPPED (anonymous is Valve-blocked; set STEAM_USER/STEAM_PASS + skip_steam_update=false to enable)."
           fi
 
-          echo "::group::Rsync zonemod overlay (laid down first)"
-          # The zonemod release tarball top-level is the left4dead2 overlay itself.
-          # Confirm the structure: if there's a left4dead2/ inside, sync that; otherwise sync as-is.
-          if [[ -d _zonemod_overlay/left4dead2 ]]; then
-              ZONE_SRC="_zonemod_overlay/left4dead2/"
-          else
-              ZONE_SRC="_zonemod_overlay/"
-          fi
-          SSHPASS="${SSHPASS}" rsync -az --delete-after \
-              --exclude '.git/' --exclude '.github/' --exclude '.cicd/' \
-              -e "sshpass -e ssh -o StrictHostKeyChecking=yes -p ${SSH_PORT}" \
-              "${ZONE_SRC}" "${SSH_USER}@${SSH_HOST}:/tmp/bizzymod-stage-zonemod/"
-          remote "
-              install -d ${REMOTE_TARGET_FOLDER}/left4dead2
-              rsync -a /tmp/bizzymod-stage-zonemod/ ${REMOTE_TARGET_FOLDER}/left4dead2/
-              rm -rf /tmp/bizzymod-stage-zonemod
-              chown -R ${SRCDS_USER}:${SRCDS_USER} ${REMOTE_TARGET_FOLDER}
-          "
-          echo "::endgroup::"
-
-          echo "::group::Targeted matchmode quarantine + nuke stale plugin dirs"
-          # SourceMod auto-loads every .smx in plugins/ AND every subdirectory
-          # of plugins/ EXCEPT folders literally named 'disabled' or 'optional'.
-          #
-          # We deliberately do NOT quarantine the whole plugins/ root anymore —
-          # most of what zonemod ships there is foundational (left4dhooks,
-          # admin-flatfile, basecommands, clientprefs, ...) and the fixes/*
-          # autoloaded plugins REQUIRE left4dhooks to be loaded first. Moving
-          # it to disabled/ broke that load order; 20+ fixes plugins were
-          # failing 'Could not find required plugin left4dhooks'.
-          #
-          # Instead: quarantine ONLY the specific matchmode plugins that lock
-          # the server into Versus rules, PLUS reservedslots (which reserves/
-          # hides slots and interferes with opening survivor slots 5-16 on a
-          # coop +4 server). Anything else autoloads normally.
-          #
-          # Also wipe a stale plugins/bizzymod/ from prior deploys (those
-          # files used to autoload all the matchmode bizzymod plugins).
-          remote "
-              PLUG=${REMOTE_TARGET_FOLDER}/left4dead2/addons/sourcemod/plugins
-              install -d \\\$PLUG/disabled
-              moved=0
-              for f in match_vote.smx confoglcompmod.smx reservedslots.smx; do
-                  if [ -e \\\"\\\$PLUG/\\\$f\\\" ]; then
-                      mv -f \\\"\\\$PLUG/\\\$f\\\" \\\$PLUG/disabled/
-                      moved=\\\$((moved + 1))
-                  fi
-              done
-              echo \\\"Quarantined \\\$moved matchmode plugin(s)\\\"
-
-              # Quarantine fixes/ plugins not wanted on this coop server:
-              #   l4d2_hltv_crash_fix    - SourceTV crash fix; sig broken + SourceTV off.
-              #   l4d2_tank_flying_incap - competitive "tank punch sends the incapped
-              #     survivor flying" mechanic (Sir/Forgetest). Unwanted on coop Expert,
-              #     where every incapping tank punch launches the survivor across the area.
-              for f in l4d2_hltv_crash_fix.smx l4d2_tank_flying_incap.smx; do
-                  if [ -e \\\"\\\$PLUG/fixes/\\\$f\\\" ]; then mv -f \\\"\\\$PLUG/fixes/\\\$f\\\" \\\$PLUG/disabled/; fi
-              done
-
-              # Nuke stale bizzymod/ from before the optional/bizzymod/ move.
-              if [ -d \\\$PLUG/bizzymod ]; then
-                  rm -rf \\\$PLUG/bizzymod
-                  echo \\\"Removed stale plugins/bizzymod/ directory\\\"
+          if [[ "${APPLY_ZONEMOD}" == "true" ]]; then
+              echo "::group::Rsync zonemod overlay (laid down first, --delete-after resets tree to baseline)"
+              # --delete-after resets the left4dead2 tree to the zonemod baseline,
+              # which also wipes any stale/bad content already on the target (e.g.
+              # a previous mode's leftovers) before our overlay lands on top.
+              if [[ -d _zonemod_overlay/left4dead2 ]]; then
+                  ZONE_SRC="_zonemod_overlay/left4dead2/"
+              else
+                  ZONE_SRC="_zonemod_overlay/"
               fi
+              SSHPASS="${SSHPASS}" rsync -az --delete-after \
+                  --exclude '.git/' \
+                  -e "sshpass -e ssh -o StrictHostKeyChecking=yes -p ${SSH_PORT}" \
+                  "${ZONE_SRC}" "${SSH_USER}@${SSH_HOST}:/tmp/bizzymod-stage-zonemod/"
+              remote "
+                  install -d ${REMOTE_TARGET_FOLDER}/left4dead2
+                  rsync -a --delete-after /tmp/bizzymod-stage-zonemod/ ${REMOTE_TARGET_FOLDER}/left4dead2/
+                  rm -rf /tmp/bizzymod-stage-zonemod
+                  chown -R ${SRCDS_USER}:${SRCDS_USER} ${REMOTE_TARGET_FOLDER}
+              "
+              echo "::endgroup::"
+          else
+              echo "zonemod overlay SKIPPED (this server's deploy.env has APPLY_ZONEMOD_OVERLAY=false)."
+          fi
 
-              # Match-vote persistence -- prevents confoglcompmod replay.
-              rm -f ${REMOTE_TARGET_FOLDER}/left4dead2/addons/sourcemod/data/match_vote.txt
-              chown -R ${SRCDS_USER}:${SRCDS_USER} ${REMOTE_TARGET_FOLDER}/left4dead2/addons/sourcemod
-          "
-          echo "::endgroup::"
+          if [[ "${QUARANTINE_MATCHMODE}" == "true" ]]; then
+              echo "::group::Quarantine matchmode plugins + nuke stale dirs"
+              # SourceMod auto-loads every .smx in plugins/ AND its subdirectories
+              # EXCEPT folders named 'disabled' or 'optional'. We quarantine only
+              # the specific matchmode plugins that lock the server into Versus
+              # rules (moving the whole plugins/ root breaks left4dhooks load order).
+              remote "
+                  PLUG=${REMOTE_TARGET_FOLDER}/left4dead2/addons/sourcemod/plugins
+                  install -d \\\$PLUG/disabled
+                  moved=0
+                  for f in match_vote.smx confoglcompmod.smx reservedslots.smx; do
+                      if [ -e \\\"\\\$PLUG/\\\$f\\\" ]; then
+                          mv -f \\\"\\\$PLUG/\\\$f\\\" \\\$PLUG/disabled/
+                          moved=\\\$((moved + 1))
+                      fi
+                  done
+                  echo \\\"Quarantined \\\$moved matchmode plugin(s)\\\"
 
-          echo "::group::Rsync Bizzymod Campaign overlay (this repo wins on conflict)"
-          # Stage to /tmp so we don't need sudo over rsync; then move into place server-side.
+                  # Per-server extra fixes/ plugins to quarantine (from deploy.env).
+                  for f in ${QUARANTINE_FIXES}; do
+                      if [ -e \\\"\\\$PLUG/fixes/\\\$f\\\" ]; then mv -f \\\"\\\$PLUG/fixes/\\\$f\\\" \\\$PLUG/disabled/; fi
+                  done
+
+                  # Nuke a stale plugins/bizzymod/ from before the optional/bizzymod/ move.
+                  if [ -d \\\$PLUG/bizzymod ]; then rm -rf \\\$PLUG/bizzymod; echo 'Removed stale plugins/bizzymod/'; fi
+
+                  # Drop match-vote persistence so confoglcompmod can't replay.
+                  rm -f ${REMOTE_TARGET_FOLDER}/left4dead2/addons/sourcemod/data/match_vote.txt
+                  chown -R ${SRCDS_USER}:${SRCDS_USER} ${REMOTE_TARGET_FOLDER}/left4dead2/addons/sourcemod
+              "
+              echo "::endgroup::"
+          fi
+
+          echo "::group::Rsync ${SERVER_DIR} overlay (this repo wins on conflict)"
+          # servers/<server>/ contains ONLY runtime content (addons, cfg, scripts,
+          # host/motd). Stage to /tmp (no sudo over rsync), then move into place.
           SSHPASS="${SSHPASS}" rsync -az \
-              --exclude '.git/' --exclude '.github/' --exclude '.cicd/' --exclude '.deploy/' \
-              --exclude 'SourceMod/' --exclude '_sm_compile_root/' \
-              --exclude 'zonemod/' --exclude '_zonemod_overlay/' \
-              --exclude 'legacy/' \
-              --exclude 'CLAUDE.md' --exclude 'DEPLOY.md' --exclude 'guide/' \
-              --exclude '*.md' \
+              --exclude '.git/' --exclude 'deploy.env' --exclude '*.md' \
               -e "sshpass -e ssh -o StrictHostKeyChecking=yes -p ${SSH_PORT}" \
-              ./ "${SSH_USER}@${SSH_HOST}:/tmp/bizzymod-stage-campaign/"
+              "${SERVER_DIR}/" "${SSH_USER}@${SSH_HOST}:/tmp/bizzymod-stage-server/"
           remote "
-              rsync -a /tmp/bizzymod-stage-campaign/ ${REMOTE_TARGET_FOLDER}/left4dead2/
-              rm -rf /tmp/bizzymod-stage-campaign
+              rsync -a /tmp/bizzymod-stage-server/ ${REMOTE_TARGET_FOLDER}/left4dead2/
+              rm -rf /tmp/bizzymod-stage-server
               chown -R ${SRCDS_USER}:${SRCDS_USER} ${REMOTE_TARGET_FOLDER}
               find ${REMOTE_TARGET_FOLDER}/left4dead2 -type d -exec chmod 755 {} +
               find ${REMOTE_TARGET_FOLDER}/left4dead2 -type f -exec chmod 644 {} +
@@ -275,7 +292,6 @@ jobs:
 
           echo "::group::Start server (${INIT_PATH} start)"
           remote "${INIT_PATH} start"
-          # Give srcds a few seconds to fork + bind, then confirm it's alive.
           sleep 5
           remote "pgrep -af srcds_run | head -5 || (echo 'srcds_run not running'; exit 1)"
           echo "::endgroup::"

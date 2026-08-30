@@ -17,6 +17,16 @@ name: Migrate stats DB
 on:
   workflow_dispatch:
     inputs:
+      server:
+        description: "Which server (game mode) — selects the SSH target"
+        type: choice
+        options: [campaign]
+        default: campaign
+      environment:
+        description: "Target environment"
+        type: choice
+        options: [dev, prod]
+        default: dev
       dry_run:
         description: "Dry-run: count rows we would write but don't actually write"
         type: boolean
@@ -32,16 +42,17 @@ on:
 
 jobs:
   migrate:
-    runs-on: ubuntu-latest
-    environment: production
+    runs-on: [self-hosted, Linux]
+    environment: ${{ inputs.server }}-${{ inputs.environment }}
     timeout-minutes: 30
 
     steps:
       - name: Checkout this repo
         uses: actions/checkout@v5
 
-      - name: Install sshpass + rsync
-        run: sudo apt-get update -y && sudo apt-get install -y --no-install-recommends sshpass rsync openssh-client
+      - name: Verify runner tools (sshpass rsync ssh)
+        run: |
+          for c in sshpass rsync ssh ssh-keyscan; do command -v "$c" >/dev/null || { echo "::error::self-hosted runner missing $c"; exit 1; }; done
 
       - name: Trust SSH host
         env:

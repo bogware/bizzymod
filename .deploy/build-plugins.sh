@@ -23,8 +23,23 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BIZZY_PLUGINS="${ROOT}/addons/sourcemod/plugins/optional/bizzymod"
-BIZZY_SCRIPTING="${ROOT}/addons/sourcemod/scripting"
+
+# Which server (game mode) to build for. Pass the server dir as $1 (or via the
+# SERVER_DIR env), relative to repo root or absolute. Each server is
+# self-contained under servers/<name>/, so its plugins + scripting live there.
+SERVER_DIR_IN="${1:-${SERVER_DIR:-servers/campaign}}"
+case "${SERVER_DIR_IN}" in
+    /*) SERVER_DIR="${SERVER_DIR_IN}" ;;
+    *)  SERVER_DIR="${ROOT}/${SERVER_DIR_IN}" ;;
+esac
+[ -d "${SERVER_DIR}/addons/sourcemod/scripting" ] || {
+    echo "build-plugins: no scripting tree under ${SERVER_DIR}/addons/sourcemod/scripting" >&2
+    exit 1
+}
+
+BIZZY_PLUGINS="${SERVER_DIR}/addons/sourcemod/plugins/optional/bizzymod"
+BIZZY_SCRIPTING="${SERVER_DIR}/addons/sourcemod/scripting"
+# zonemod source (for shared includes) is checked out at repo root by the workflow.
 ZONE_SCRIPTING="${ROOT}/zonemod/addons/sourcemod/scripting"
 
 # Committed binaries we intentionally ship WITHOUT source (cannot be rebuilt on
