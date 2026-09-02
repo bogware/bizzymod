@@ -7,23 +7,34 @@ name: Diagnose server
 on:
   workflow_dispatch:
     inputs:
+      server:
+        description: "Which server (game mode)"
+        type: choice
+        options: [campaign]
+        default: campaign
+      environment:
+        description: "Target environment"
+        type: choice
+        options: [dev, prod]
+        default: dev
       sample_steamid:
-        description: "Optional STEAM_X:Y:Z to look up in the new stats DB"
+        description: "Optional STEAM_X:Y:Z to look up in the stats DB"
         type: string
         default: ""
 
 jobs:
   diagnose:
-    runs-on: ubuntu-latest
-    environment: production
+    runs-on: [self-hosted, Linux]
+    environment: ${{ inputs.server }}-${{ inputs.environment }}
     timeout-minutes: 15
 
     steps:
       - name: Checkout this repo
         uses: actions/checkout@v5
 
-      - name: Install sshpass + rsync
-        run: sudo apt-get update -y && sudo apt-get install -y --no-install-recommends sshpass rsync openssh-client
+      - name: Verify runner tools (sshpass rsync ssh)
+        run: |
+          for c in sshpass rsync ssh ssh-keyscan; do command -v "$c" >/dev/null || { echo "::error::self-hosted runner missing $c"; exit 1; }; done
 
       - name: Trust SSH host
         env:
