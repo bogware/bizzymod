@@ -1,0 +1,83 @@
+"MatchModes"
+{
+	// Merged menu: bizzymod-family configs (overlaid) + zonemod v1.0.0 configs (from the
+	// overlay). Any player can `!match` to vote any of these. Every entry maps to a
+	// cfg/cfgogl/<key>/ folder present after deploy (zonemod overlay + bizzymod overlay).
+	"Bizzymod Configs"
+	{
+		"numbersmod"  { "name" "numbersmod 6.9.420" }
+		"barrymod"    { "name" "barrymod 70.0.0" }
+		"barrymod2"   { "name" "barrymod2 (refined)" }
+		"surfmod"     { "name" "surfmod 1.0" }
+		"spacemod"    { "name" "spacemod -1.0" }
+		"thundermod"  { "name" "ThunderMod 0.5" }
+		"acv"         { "name" "Advanced Versus 2.0" }
+		"bizzymod"    { "name" "bizzymod 0.8" }
+		"zonereal"    { "name" "zonemod realism 6.9" }
+		"kneemod"     { "name" "kneemod 2.3" }
+		"bobbymod"    { "name" "bobbymod 0.5" }
+		"seltzermod"  { "name" "seltzermod 4.20" }
+		"busmod"      { "name" "busmod 69.69.69" }
+		"bananamod"   { "name" "bananamod 0.7" }
+		"heizemod"    { "name" "heizemod 1.0" }
+		"flatmod"     { "name" "flatmod 0.1" }
+		"onemod"      { "name" "OneMod 1.3" }
+		"powermod"    { "name" "powermod 4.0" }
+		"invokemod"   { "name" "invokemod 0.0.69.2" }
+		"deadmanX"    { "name" "deadman 6.1" }
+		"hardcoremod" { "name" "hardcoremod" }
+		"pissmod"     { "name" "pissmod" }
+	}
+	"ZoneMod Configs"
+	{
+		"zonemod"     { "name" "ZoneMod 2.9.1b" }
+		"zonemodX"    { "name" "ZoneMod 2.5.1" }
+		"zonemodXX"   { "name" "ZoneMod 2.6.7" }
+		"zoneretro"   { "name" "ZoneMod Retro 2.9.1b" }
+		"zonemodold"  { "name" "ZoneMod 1.9.16" }
+		"zm3v3"       { "name" "3v3 ZoneMod" }
+		"zm2v2"       { "name" "2v2 ZoneMod" }
+		"zm1v1"       { "name" "1v1 ZoneMod" }
+	}
+	"Acemod Revamped Configs"
+	{
+		"acemodrv"    { "name" "Acemod RV 1.3" }
+		"amrv3v3"     { "name" "3v3 Acemod RV" }
+		"amrv2v2"     { "name" "2v2 Acemod RV" }
+		"amrv1v1"     { "name" "1v1 Acemod RV" }
+	}
+	"NeoMod Configs"
+	{
+		"neomod"      { "name" "NeoMod Tourney 0.4a" }
+	}
+	"NextMod Configs"
+	{
+		"nextmod"     { "name" "NextMod 1.0.5" }
+		"nextmod3v3"  { "name" "3v3 NextMod" }
+		"nextmod2v2"  { "name" "2v2 NextMod" }
+		"nextmod1v1"  { "name" "1v1 NextMod" }
+	}
+	"Promod Configs"
+	{
+		"pmelite"     { "name" "Promod Elite 1.1" }
+		"deadman"     { "name" "Deadman 5.0.3" }
+	}
+	"EQ Configs"
+	{
+		"eq"          { "name" "Equilibrium 3.0c" }
+		"eq3v3"       { "name" "3v3 EQ" }
+		"eq2v2"       { "name" "2v2 EQ" }
+		"eq1v1"       { "name" "1v1 EQ" }
+	}
+	"Apex Configs"
+	{
+		"apex"        { "name" "Apex 1.1.2" }
+	}
+	"Hunters Configs"
+	{
+		"zonehunters" { "name" "ZoneHunters 2.9.1b" }
+		"zh3v3"       { "name" "3v3 ZoneHunters" }
+		"zh2v2"       { "name" "2v2 ZoneHunters" }
+		"zh1v1"       { "name" "1v1 ZoneHunters" }
+	}
+}

@@ -7,7 +7,32 @@
  * during the session and are flushed in one transaction at close.
  */
 
-void Bizzy_OnSessionInit() { /* nothing yet */ }
+void Bizzy_OnSessionInit()
+{
+    // The startup orphan-session sweep runs from identity.sp's OnServerLookup,
+    // once g_DB + g_ServerId are actually resolved (the DB connect is async, so
+    // there is nothing to sweep at plugin-init time).
+}
+
+// Close any sessions left open by a previous load on THIS server. Sessions are
+// otherwise only closed on the disconnect/mapchange path (Bizzy_Session_Flush),
+// so a server restart (the benign sm_RestartEmpty empty-restart) or a plugin
+// reload with sessions still open leaves those rows ended_at=NULL forever —
+// leaked rows that never captured combat and skew session counts. Called from
+// Bizzy_Identity's OnServerLookup the moment the server row resolves. The 60s
+// guard leaves a session a player opened seconds after boot untouched (mirrors
+// versus.sp's AbandonStaleMatchesForServer, which does the same for matches).
+void Bizzy_Session_SweepStale()
+{
+    if (g_DB == null || g_ServerId == 0) return;
+    char sql[256];
+    FormatEx(sql, sizeof sql,
+        "UPDATE sessions SET ended_at=NOW(), "
+        ... "duration_s=LEAST(GREATEST(0, TIMESTAMPDIFF(SECOND, started_at, NOW())), 21600) "
+        ... "WHERE server_id=%d AND ended_at IS NULL "
+        ... "AND started_at <= NOW() - INTERVAL 60 SECOND", g_ServerId);
+    Bizzy_DB_Exec(sql);
+}
 
 stock void Bizzy_BeginClientSession(int client)
 {
@@ -112,7 +137,7 @@ stock void Bizzy_Session_Flush(int client, int duration)
         ... " time_alive_s, time_dead_s, time_incapped_s, "
         ... " pinned_by_smoker, pinned_by_hunter, pinned_by_jockey, pinned_by_charger, "
         ... " vomited_on, self_escapes, distance_units) "
-        ... "VALUES (%d, %d, %d, 0, "
+        ... "VALUES (%d, %d, %d, %d, "
         ... " %d, %d, 1, "
         ... " %d, %d, %d, "
         ... " %d, %d, %d, "
@@ -158,7 +183,7 @@ stock void Bizzy_Session_Flush(int client, int duration)
         ... " self_escapes        = self_escapes        + VALUES(self_escapes), "
         ... " distance_units      = distance_units      + VALUES(distance_units)",
         g_Clients[client].playerId,
-        view_as<int>(g_CurrentMode), view_as<int>(g_CurrentDifficulty),
+        view_as<int>(g_CurrentMode), view_as<int>(g_CurrentDifficulty), g_ServerId,
         g_Clients[client].pointsThisSession, duration,
         g_Clients[client].shotsFired, g_Clients[client].shotsHit,
         g_Clients[client].headshots,
@@ -184,7 +209,7 @@ stock void Bizzy_Session_Flush(int client, int duration)
     // is clamped to >=0 in the INSERT: pointsThisSession can go negative (griefing / FF with
     // negative_score on) but the column is INT UNSIGNED, so a negative is rejected by MySQL
     // and drops the entire flush transaction. A negative career "best" is meaningless anyway.
-    // See bogware/bizzymod-stats#7.
+    // See #7.
     FormatEx(sql, sizeof sql,
         "INSERT INTO career_bests "
         ... "(player_id, most_points_in_session, most_kills_in_session, "
@@ -215,7 +240,7 @@ stock void Bizzy_Session_Flush(int client, int duration)
         ... " ff_kills_caused, reloads, "
         ... " multikill_2, multikill_3, multikill_4, multikill_5plus, "
         ... " kill_assists_special, kill_assists_tank, kill_assists_witch) "
-        ... "VALUES (%d, %d, %d, 0, "
+        ... "VALUES (%d, %d, %d, %d, "
         ... " %d, %d, %d, %d, %d, "
         ... " %d, %d, %d, %d, "
         ... " %d, %d, "
@@ -241,7 +266,7 @@ stock void Bizzy_Session_Flush(int client, int duration)
         ... " kill_assists_tank    = kill_assists_tank    + VALUES(kill_assists_tank), "
         ... " kill_assists_witch   = kill_assists_witch   + VALUES(kill_assists_witch)",
         g_Clients[client].playerId,
-        view_as<int>(g_CurrentMode), view_as<int>(g_CurrentDifficulty),
+        view_as<int>(g_CurrentMode), view_as<int>(g_CurrentDifficulty), g_ServerId,
         g_Clients[client].dmgHitHead, g_Clients[client].dmgHitChest,
         g_Clients[client].dmgHitStomach, g_Clients[client].dmgHitLimb,
         g_Clients[client].dmgHitOther,
@@ -272,7 +297,7 @@ stock void Bizzy_Session_Flush(int client, int duration)
         ... " throwables_hoarded, defibs_hoarded, defib_target_points_sum, "
         ... " weapon_t1_time_s, weapon_t2_time_s, "
         ... " weapon_melee_time_s, weapon_sniper_time_s) "
-        ... "VALUES (%d, %d, %d, 0, "
+        ... "VALUES (%d, %d, %d, %d, "
         ... " %d, %d, %d, %d, %d, %d, %d, %d, "
         ... " %d, %d, "
         ... " %d, %d, %d, %d, %d, %d, "
@@ -299,7 +324,7 @@ stock void Bizzy_Session_Flush(int client, int duration)
         ... " weapon_melee_time_s    = weapon_melee_time_s    + VALUES(weapon_melee_time_s), "
         ... " weapon_sniper_time_s   = weapon_sniper_time_s   + VALUES(weapon_sniper_time_s)",
         g_Clients[client].playerId,
-        view_as<int>(g_CurrentMode), view_as<int>(g_CurrentDifficulty),
+        view_as<int>(g_CurrentMode), view_as<int>(g_CurrentDifficulty), g_ServerId,
         g_Clients[client].hpAtSaferoomSum, g_Clients[client].hpAtSaferoomCount,
         g_Clients[client].hpAtPillsSum,    g_Clients[client].hpAtPillsCount,
         g_Clients[client].hpAtAdrenSum,    g_Clients[client].hpAtAdrenCount,
@@ -319,14 +344,14 @@ stock void Bizzy_Session_Flush(int client, int duration)
         "INSERT INTO player_stats "
         ... "(player_id, gamemode_id, difficulty_id, server_id, "
         ... " time_alone_s, breaks_from_group, fall_damage_taken, max_team_spread_units) "
-        ... "VALUES (%d, %d, %d, 0, %d, %d, %d, %d) "
+        ... "VALUES (%d, %d, %d, %d, %d, %d, %d, %d) "
         ... "ON DUPLICATE KEY UPDATE "
         ... " time_alone_s          = time_alone_s          + VALUES(time_alone_s), "
         ... " breaks_from_group     = breaks_from_group     + VALUES(breaks_from_group), "
         ... " fall_damage_taken     = fall_damage_taken     + VALUES(fall_damage_taken), "
         ... " max_team_spread_units = GREATEST(max_team_spread_units, VALUES(max_team_spread_units))",
         g_Clients[client].playerId,
-        view_as<int>(g_CurrentMode), view_as<int>(g_CurrentDifficulty),
+        view_as<int>(g_CurrentMode), view_as<int>(g_CurrentDifficulty), g_ServerId,
         timeAlone, g_Clients[client].breaksFromGroup,
         g_Clients[client].fallDamageTaken, g_Clients[client].maxTeamSpreadUnits);
     txn.AddQuery(sql);
@@ -339,7 +364,7 @@ stock void Bizzy_Session_Flush(int client, int duration)
         ... " first_bloods, first_downs, saferoom_door_closes, "
         ... " crescendos_cleared, crescendos_wiped, finale_waves_cleared, "
         ... " tank_kill_participations, tank_solo_kills) "
-        ... "VALUES (%d, %d, %d, 0, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d) "
+        ... "VALUES (%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d) "
         ... "ON DUPLICATE KEY UPDATE "
         ... " revive_chains_started     = revive_chains_started     + VALUES(revive_chains_started), "
         ... " revive_chains_part_of     = revive_chains_part_of     + VALUES(revive_chains_part_of), "
@@ -353,7 +378,7 @@ stock void Bizzy_Session_Flush(int client, int duration)
         ... " tank_kill_participations  = tank_kill_participations  + VALUES(tank_kill_participations), "
         ... " tank_solo_kills           = tank_solo_kills           + VALUES(tank_solo_kills)",
         g_Clients[client].playerId,
-        view_as<int>(g_CurrentMode), view_as<int>(g_CurrentDifficulty),
+        view_as<int>(g_CurrentMode), view_as<int>(g_CurrentDifficulty), g_ServerId,
         g_Clients[client].reviveChainsStarted, g_Clients[client].reviveChainsPartOf,
         g_Clients[client].saveOfSaves,
         g_Clients[client].firstBloods, g_Clients[client].firstDowns,

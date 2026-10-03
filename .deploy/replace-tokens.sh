@@ -31,6 +31,7 @@ TOKENS=(
     "SourceBans_Port=SOURCEBANS_PORT"
     "SourceBans_User=SOURCEBANS_USER"
     "SourceBans_Pass=SOURCEBANS_PASS"
+    "SB_ServerID=SB_SERVERID"
     "userName=SRCDS_USER"
     "RemoteTargetFolder=REMOTE_TARGET_FOLDER"
     "initPath=INIT_PATH"

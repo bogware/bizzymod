@@ -49,7 +49,7 @@ void Bizzy_OnEventsInit()
     HookEventEx("revive_begin",         Event_ReviveBegin,        EventHookMode_Post);
     HookEventEx("heal_begin",           Event_HealBegin,          EventHookMode_Post);
     HookEventEx("pills_used_fail",      Event_PillsFail,          EventHookMode_Post);
-    HookEventEx("entered_checkpoint", Event_EnteredSafe,        EventHookMode_Post);  // not present in all builds; non-fatal
+    HookEventEx("entered_checkpoint",   Event_EnteredSafe,        EventHookMode_Post);
     HookEventEx("door_close",           Event_DoorClose,          EventHookMode_Post);
     HookEventEx("witch_spawn",          Event_WitchSpawn,         EventHookMode_Post);
     HookEventEx("witch_killed",         Event_WitchKilledExt,     EventHookMode_Post);

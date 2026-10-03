@@ -1,0 +1,70 @@
+"Phrases"
+{
+    "Prefix"
+    {
+        "en"  "[bizzymod-stats]"
+    }
+    "JoinedAnnouncement"
+    {
+        "#format"  "{1:N},{2:d},{3:d}"
+        "en"       "{1} joined the game! (Rank: {2}, Points: {3})"
+    }
+    "YourRank"
+    {
+        "#format"  "{1:d},{2:d}"
+        "en"       "Your rank: {1}  Points: {2}"
+    }
+    "NextRank"
+    {
+        "#format"  "{1:d}"
+        "en"       "{1} more points to the next rank."
+    }
+    "TopRank"
+    {
+        "en"  "You are rank #1."
+    }
+    "MotdUpdated"
+    {
+        "en"  "MOTD updated."
+    }
+    "VoteStarted"
+    {
+        "en"  "Vote started: shuffle teams by PPM?"
+    }
+    "VotePassed"
+    {
+        "en"  "Vote passed — shuffling teams."
+    }
+    "VoteFailed"
+    {
+        "en"  "Vote failed."
+    }
+    "StatsLoading"
+    {
+        "en"  "Stats not loaded yet — try again in a moment."
+    }
+    "Muted"
+    {
+        "en"  "Stat messages muted."
+    }
+    "Unmuted"
+    {
+        "en"  "Stat messages unmuted."
+    }
+    "ConfirmClearArmed"
+    {
+        "en"  "Re-run within 10 seconds to confirm WIPE of all stats."
+    }
+    "Cleared"
+    {
+        "en"  "Stats cleared."
+    }
+    "RankVoteOnlyVS"
+    {
+        "en"  "Rank vote only works in two-team modes."
+    }
+    "VoteAlreadyActive"
+    {
+        "en"  "A vote is already active."
+    }
+}

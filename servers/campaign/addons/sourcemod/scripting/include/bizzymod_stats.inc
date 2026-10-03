@@ -12,7 +12,7 @@
 #define _bizzymod_stats_included
 
 #define BIZZY_PLUGIN_NAME    "bizzymod-stats"
-#define BIZZY_PLUGIN_VERSION "0.6.0"
+#define BIZZY_PLUGIN_VERSION "0.7.8"
 #define BIZZY_PLUGIN_URL     "https://github.com/bogware/bizzymod-stats"
 
 #define BIZZY_DB_CONFIG_NAME "bizzymod_stats"

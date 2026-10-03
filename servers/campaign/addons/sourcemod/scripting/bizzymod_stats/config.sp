@@ -52,4 +52,12 @@ void Bizzy_OnConfigInit()
     g_cvBotMultiplier = CreateConVar("bizzymod_stats_bot_multiplier", "1.0",
         "Multiplier on bot-related score penalties (0 disables).",
         _, true, 0.0, false, 0.0);
+
+    // Mutation gamemodes that are really Realism-Versus and should be recorded as
+    // such (per-chapter versus stats). The Bizzy's Dugout realism-versus runs as
+    // mp_gamemode "mutation12" (vscript_replacer swaps mutation12 -> bizzymodRealism),
+    // which would otherwise classify as plain Mutation and skip all versus recording.
+    // Comma/space/semicolon separated; empty = none.
+    g_cvVersusMutations = CreateConVar("bizzymod_stats_versus_mutations", "mutation12",
+        "Mutation gamemodes to record as Realism-Versus (e.g. bizzymod realism-versus 'mutation12'). Empty = none.");
 }

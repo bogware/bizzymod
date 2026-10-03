@@ -1,19 +1,33 @@
-# servers/vanilla — scaffold (not built yet)
+# servers/vanilla — "Flat's Hole" (public vanilla VERSUS)
 
-Placeholder for a plain / vanilla game-mode server. **Nothing deploys from here
-yet** — `campaign` is the only wired server.
+A public, vanilla Left 4 Dead 2 **Versus** server. Same zonemod base as campaign
+(for its stability/bug/crash fixes + anticheat), but **stripped to vanilla**: no
+gameplay plugins, matchmode quarantined, and every gameplay-changing fix disabled.
+Valve versus, untouched — no team shuffling.
 
-To stand it up:
+## What runs
+- **Kept:** zonemod's pure crash/exploit/netcode/map/vote fixes (auto-load), base
+  SourceMod admin plugins, `anticheat/` (SourceBans++ `sbpp_*`, `lilac`,
+  `l4d2_noghostcheat`), and **bizzymod-stats** + `sm_RestartEmpty` (loaded by
+  `cfg/flatshole.cfg`).
+- **Dropped:** every bizzymod gameplay plugin (manual director, spawn props, weapon
+  spawn, SuperVersus, gear transfer, explosive cars, mix, l4d2scores, Survivor_Legs)
+  and 26 gameplay-changing zonemod fixes (tongue / melee / shove / stagger / hitbox /
+  jockey / charger / spit / team-shuffle / bequiet / …) — see `deploy.env`
+  `QUARANTINE_FIXES`.
 
-1. Populate this folder as a self-contained overlay (mirror `servers/campaign/`).
-   Vanilla runs **no** zonemod overlay.
-2. Add `servers/vanilla/deploy.env`:
-   ```sh
-   APPLY_ZONEMOD_OVERLAY=false
-   QUARANTINE_MATCHMODE=false
-   QUARANTINE_FIXES=""
-   SOURCEMOD_VERSION=1.12.x
-   ```
-3. Add `vanilla` to the `server` input options in `.github/workflows/deploy.yml`.
-4. Create the GitHub Environments `vanilla-dev` and `vanilla-prod` with the
-   per-target secrets/vars (see `DEPLOY.md`).
+## Where it runs
+- **prod:** `<PROD_HOST>:27017`, user `flatshole`, install
+  `/home/flatshole/Steam/steamapps/common/l4d2/left4dead2`, init
+  `/etc/init.d/srcdsFlatsHole`. Same physical box as campaign (`:27016`, user
+  `campaign`).
+
+## Identity
+- Hostname `Flat's Hole`; `mp_gamemode versus`; Steam group `38693222` (shared,
+  public / non-exclusive); distinct `sv_search_key "flatshole"`.
+- Shares the campaign stats + SourceBans DBs; registers as its **own** SourceBans
+  server (`AutoAddServer 1`, `ServerID 0`). Reuses campaign's RCON.
+
+## Deploy
+`gh workflow run deploy.yml -f server=vanilla -f environment=prod` — once the
+`vanilla-prod` GitHub Environment is created (see `DEPLOY.md`).

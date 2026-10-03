@@ -25,6 +25,11 @@ TICKRATE="${TICKRATE:-100}"
 MAXPLAYERS="${MAXPLAYERS:-32}"     # engine hard cap; l4dtoolz raises the survivor slots within this
 STARTMAP="${STARTMAP:-c1m1_hotel}"
 SERVERCFG="${SERVERCFG:-server1.cfg}"
+# Boot gamemode. Empty = engine default (coop). MUST be a launch +command for a
+# dedicated versus server: setting mp_gamemode in a cfg (even autoexec, exec'd
+# before +map) does NOT change the gamemode of the BOOT map — the server comes up
+# as coop (4 slots) until the first map change. Only +mp_gamemode here fixes it.
+GAMEMODE="${GAMEMODE:-}"           # e.g. "versus" for Flat's Hole / a versus pub
 
 cd "${INSTALL_DIR}" || { echo "FATAL: INSTALL_DIR '${INSTALL_DIR}' not found" >&2; exit 1; }
 [[ -x ./srcds_run ]] || { echo "FATAL: ./srcds_run not found/executable in ${INSTALL_DIR}" >&2; exit 1; }
@@ -39,4 +44,5 @@ exec ./srcds_run \
     -norestart \
     +sv_clockcorrection_msecs 25 \
     +servercfgfile "${SERVERCFG}" \
+    ${GAMEMODE:+ +mp_gamemode ${GAMEMODE}} \
     +map "${STARTMAP}"

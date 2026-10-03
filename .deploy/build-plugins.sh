@@ -89,46 +89,55 @@ failed=0
 built=0
 fail_list=()
 
-for smx in "${BIZZY_PLUGINS}"/*.smx; do
-    [[ -e "${smx}" ]] || { echo "build-plugins: no .smx in ${BIZZY_PLUGINS}; nothing to do."; break; }
-    base="$(basename "${smx}" .smx)"
-    sp="${WORK}/${base}.sp"
+# compile_one <base> <dest_smx>
+#   Compile ${base}.sp (staged in WORK) and write the .smx over <dest_smx>.
+#   A missing .sp is FATAL unless the base is NOSRC_ALLOW-listed, so a
+#   placeholder/stale binary can never ship for a plugin we mean to build.
+compile_one() {
+    local base="$1" dest="$2"
+    local sp="${WORK}/${base}.sp"
 
     if [[ ! -f "${sp}" ]]; then
-        # Allowlisted no-source binary? keep it. Otherwise it's fatal so a
-        # placeholder/stale .smx can never ship for a loaded plugin.
         if [[ " ${NOSRC_ALLOW} " == *" ${base} "* ]]; then
             echo "  keep (no .sp, allowlisted committed binary): ${base}.smx"
-            continue
+            return 0
         fi
         echo "  FATAL: ${base}.smx has no matching ${base}.sp and is not in NOSRC_ALLOW" >&2
-        failed=$((failed + 1))
-        fail_list+=("${base}")
-        continue
+        failed=$((failed + 1)); fail_list+=("${base}"); return 1
     fi
 
-    echo "  build: ${base}.sp"
+    echo "  build: ${base}.sp -> ${dest#${SERVER_DIR}/}"
     # spcomp does NOT implicitly search ./include/ — only the dirs from -i flags.
     # The proxy from setup-sp already injects -i<cached SM include>; we add our
     # merged include/ (bizzymod + zonemod overlay) explicitly.
     if ! spcomp "${base}.sp" -i"${WORK}/include" >/tmp/spcomp.${base}.log 2>&1; then
         echo "    FAILED (last 30 lines):"
         tail -n 30 "/tmp/spcomp.${base}.log" | sed 's/^/      /'
-        failed=$((failed + 1))
-        fail_list+=("${base}")
-        continue
+        failed=$((failed + 1)); fail_list+=("${base}"); return 1
     fi
-
-    out="${WORK}/${base}.smx"
-    if [[ ! -f "${out}" ]]; then
-        echo "    FAILED: spcomp returned 0 but ${out} not produced"
-        failed=$((failed + 1))
-        fail_list+=("${base}")
-        continue
+    if [[ ! -f "${WORK}/${base}.smx" ]]; then
+        echo "    FAILED: spcomp returned 0 but ${base}.smx not produced"
+        failed=$((failed + 1)); fail_list+=("${base}"); return 1
     fi
-
-    cp -f "${out}" "${smx}"
+    cp -f "${WORK}/${base}.smx" "${dest}"
     built=$((built + 1))
+}
+
+# 1) Strict manifest: every .smx under plugins/optional/bizzymod/ is built from source.
+for smx in "${BIZZY_PLUGINS}"/*.smx; do
+    [[ -e "${smx}" ]] || { echo "build-plugins: no .smx in ${BIZZY_PLUGINS}; nothing to do."; break; }
+    compile_one "$(basename "${smx}" .smx)" "${smx}" || true
+done
+
+# 2) Auto-load tray rebuilds: plugins that must live in the AUTO-LOAD plugins/bizzymod/
+#    tray (so they are up for idle play, and are reloaded by bizzyload.cfg during
+#    confoglcompmod matches after its unload_all) but are still ours to rebuild every
+#    deploy. The REST of plugins/bizzymod/ ships as tested pre-built binaries and is
+#    intentionally NOT rebuilt here, so only this allowlist is compiled from that tray.
+AUTOLOAD_TRAY="${SERVER_DIR}/addons/sourcemod/plugins/bizzymod"
+AUTOLOAD_REBUILD=(bizzymod_stats l4d2_force_precache l4d2_mix)
+for base in "${AUTOLOAD_REBUILD[@]}"; do
+    compile_one "${base}" "${AUTOLOAD_TRAY}/${base}.smx" || true
 done
 
 echo ""

@@ -54,6 +54,12 @@ static void OnServerLookup(Database db, DBResultSet rs, const char[] error, any 
     g_ServerId = rs.FetchInt(0);
     LogMessage("[bizzymod-stats] online as server_id=%d (key=%s)", g_ServerId, g_ServerKey);
 
+    // Close any sessions this server left open on a previous load (orphans from
+    // a restart/reload). Safe here — g_DB + g_ServerId are now resolved. Runs
+    // before the connected-player backfill below; the sweep's 60s age guard
+    // keeps those fresh backfilled sessions untouched.
+    Bizzy_Session_SweepStale();
+
     // Resolve map_id now in case the DB connected mid-map (server boot
     // with a map already loaded, or plugin hot-reload). OnMapStart only
     // fires on actual transitions, so without this hook g_CurrentMapId
@@ -222,5 +228,11 @@ static void OnMapUpsert(Database db, DBResultSet rs, const char[] error, any dat
 static void OnMapLookup(Database db, DBResultSet rs, const char[] error, any data)
 {
     if (rs != null && rs.FetchRow())
+    {
         g_CurrentMapId = rs.FetchInt(0);
+        // g_CurrentMapId is now FRESH for the current engine map. The versus
+        // module gates chapter opens on this (it can't trust the id during the
+        // synchronous OnMapStart, where it's still the previous chapter's id).
+        Bizzy_Versus_OnMapIdResolved();
+    }
 }

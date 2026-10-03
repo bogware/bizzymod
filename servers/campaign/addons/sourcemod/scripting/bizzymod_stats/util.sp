@@ -185,6 +185,26 @@ stock SpecialInfected Bizzy_NormalizeZombieClass(int zc)
     return SI_None;
 }
 
+// True if `mode` is listed in bizzymod_stats_versus_mutations — a mutation
+// gamemode (e.g. the bizzymod realism-versus "mutation12") that must be recorded
+// as Realism-Versus rather than plain Mutation. Delimited compare so "mutation1"
+// never matches "mutation12".
+stock bool Bizzy_IsVersusMutation(const char[] mode)
+{
+    if (g_cvVersusMutations == null || mode[0] == '\0')
+        return false;
+    char list[192];
+    g_cvVersusMutations.GetString(list, sizeof list);
+    if (list[0] == '\0')
+        return false;
+    ReplaceString(list, sizeof list, " ", ",");
+    ReplaceString(list, sizeof list, ";", ",");
+    char hay[200], needle[40];
+    Format(hay, sizeof hay, ",%s,", list);
+    Format(needle, sizeof needle, ",%s,", mode);
+    return StrContains(hay, needle, false) != -1;
+}
+
 stock void Bizzy_DetectGameMode()
 {
     char buf[32];
@@ -204,6 +224,8 @@ stock void Bizzy_DetectGameMode()
             g_CurrentMode = GameMode_Scavenge;
         else if (StrEqual(buf, "realismversus"))
             g_CurrentMode = GameMode_RealismVersus;
+        else if (Bizzy_IsVersusMutation(buf))
+            g_CurrentMode = GameMode_RealismVersus;   // e.g. Dugout "mutation12"
         else if (StrEqual(buf, "mutation01")
               || StrContains(buf, "mutation", false) == 0)
             g_CurrentMode = GameMode_Mutation;

@@ -1,122 +1,175 @@
-# BIZZYMOD
+<div align="center">
 
-> It makes a man watchful… and a little lonely.
->
-> There's a stretch of country out past the lobby servers where the law is thin
-> and the killers ride easy — griefers, cheats, a Smoker that grabs a man and
-> won't pull him in. Somebody's got to hold the line out there. That's my job.
-> I run these servers. It's a chancy job, and it makes a man watchful. But I made
-> my peace with that a long time ago.
+# 🎯 BIZZYMOD
 
-This is the territory: a **monorepo** of Left 4 Dead 2 dedicated-server content.
-Every game mode is its own **town** under `servers/`, and every town stands on its
-own two feet — nothing borrowed, nothing shared, so trouble in one never rides into
-another. Campaign was the first town we tamed. There'll be others.
+### Server-side content for the Bizzymod **Left 4 Dead 2** dedicated servers
 
----
+*One monorepo. A self-contained overlay per game mode. One workflow to ship them all.*
 
-## The Territory
+<br/>
 
-Lay of the land. What ships to a server, what stays home.
+![Servers](https://img.shields.io/badge/servers-3_live-2ea44f?style=for-the-badge)
+![Engine](https://img.shields.io/badge/Left_4_Dead_2-8b0000?style=for-the-badge&logo=steam&logoColor=white)
+![SourceMod](https://img.shields.io/badge/SourceMod-1.12-f5a623?style=for-the-badge)
+![Tickrate](https://img.shields.io/badge/tickrate-100-1f6feb?style=for-the-badge)
 
-```
-servers/
-  campaign/      the coop town — tamed, hardened, running quiet.  (THIS ships)
-  competitive/   a townsite staked out. Nobody's built on it yet. (scaffold)
-  vanilla/       same. Open ground.                               (scaffold)
-.github/         where the marshal keeps his orders — every workflow, every town
-.deploy/         his saddlebags — build + deploy scripts, server-side rigging
-.cicd/           the old circuit-court records (Azure DevOps export)
-guide/           how a greenhorn stands up his own box from bare dirt
-legacy/          boot hill — old code, left where it lies
-DEPLOY.md        the strongbox key list
-CLAUDE.md        the law of this land, written plain
-```
+![Framework](https://img.shields.io/badge/zonemod-v1.0.0-6f42c1?style=flat-square)
+![Deploy](https://img.shields.io/badge/deploy-GitHub_Actions-2088FF?style=flat-square&logo=githubactions&logoColor=white)
+![Anticheat](https://img.shields.io/badge/anticheat-SourceBans%2B%2B_%2B_lilac-e05d44?style=flat-square)
+![License](https://img.shields.io/badge/license-GPLv3-blue?style=flat-square)
 
-A town — `servers/campaign/` — carries everything it needs: `cfg/` (with
-`campaign.cfg`, the one book that says which plugins ride), `addons/` (the whole
-outfit, SourceBans and stats and the Bizzymod plugins built from their own `.sp`),
-`scripts/` (VScripts), the host and motd files, and a `deploy.env` that tells the
-marshal how this particular town likes things done.
+</div>
 
 ---
 
-## Two Towns on the Line
+## What this is
 
-Every mode runs in **two places**, and to the folks passing through they look the
-same — both public, both live, both full of strangers.
+A **monorepo of runtime content** for the Bizzymod L4D2 dedicated servers. Every
+game mode is a **"server"** under [`servers/`](servers/), and every server is
+**fully self-contained** — its own cfgs, plugins, scripts, and identity. Nothing is
+shared between them, so a change in one mode can never break another.
 
-| | **prod** | **dev** |
+There's no app to compile in the usual sense: *working on the repo* means editing
+CFG / VScript / [Stripper](https://forums.alliedmods.net/showthread.php?t=39439)
+files and occasionally rebuilding a SourceMod plugin from its `.sp` source. Build
+and deploy run entirely through **GitHub Actions**.
+
+---
+
+## 🚀 The Fleet
+
+Three live servers today, all on one prod box, each under its own Linux user and port.
+
+| Server | Mode | Port | Matchmaking key | What it is |
+|---|---|:--:|---|---|
+| 🧟 **Bizzy's Dugout** | Realism-versus *(competitive)* | `27015` | `bizzymod` | The main event. Full `confoglcompmod` matchmode — any player can `!match` to vote among **~49 configs** (numbersmod, barrymod, bizzymod, zonemod…). |
+| 🤝 **Campaign** | Co-op campaign *(Expert)* | `27016` | `bizzymod-campaign` | The hardened workhorse. Coop-only, single pinned plugin set, 100-tick. |
+| 🕳️ **Flat's Hole** | Public versus | `27017` | — | Open-to-all pub versus. |
+| 🏗️ *competitive* | — | — | — | Ground staked out — an empty scaffold, nobody's built on it yet. |
+
+> Every server runs in **two live environments** — `prod` and `dev` — that look
+> identical to players. See [Environments](#-environments).
+
+---
+
+## 🧱 Architecture
+
+Each server is built as a **stack of overlays** on top of the base game: the
+SirPlease **zonemod** competitive framework goes down first, then the mode's own
+Bizzymod overlay lands on top and wins every conflict.
+
+```mermaid
+flowchart TB
+    A["🎮 Base game<br/><sub>installed once per box (Valve-gated)</sub>"] --> B["🏗️ zonemod v1.0.0 overlay<br/><sub>confoglcompmod · fixes · ~25 configs</sub>"]
+    B --> C["📦 servers/&lt;name&gt;/ overlay<br/><sub>cfg · plugins · scripts · identity — repo wins</sub>"]
+    C --> D["🟢 Live server"]
+```
+
+Because the servers are self-contained, **adding a mode is copy-and-adjust, never
+refactor-into-shared.** Shared plugins are duplicated into each server on purpose.
+
+---
+
+## 📂 Repository layout
+
+| Path | Ships to a server? | Purpose |
+|---|:--:|---|
+| [`servers/<name>/`](servers/) | ✅ | Per-server runtime content, rsync'd onto the box + a `deploy.env` manifest *(not shipped)* |
+| [`.github/workflows/`](.github/workflows/) | ❌ | Every workflow — deploy, diagnose, migrate-stats |
+| [`.deploy/`](.deploy/) | ❌ | Build/deploy helper scripts + server-side systemd/launch/bootstrap |
+| [`.cicd/`](.cicd/) | ❌ | Historical Azure DevOps release export (deploy's ancestor) |
+| [`guide/`](guide/) | ❌ | End-user "stand up your own L4D2 box" doc |
+| `legacy/` | ❌ | Parked historical content |
+| `CLAUDE.md` · `DEPLOY.md` · `README.md` | ❌ | Repo docs |
+
+<details>
+<summary><b>🔬 Anatomy of a server</b> — what lives under <code>servers/&lt;name&gt;/</code></summary>
+
+<br/>
+
+| Piece | What it holds |
+|---|---|
+| `cfg/server1.cfg` | Primary `server.cfg`, exec'd at boot. Identity, gamemode, difficulty, 100-tick networking. |
+| `cfg/*.cfg` | The plugin-loading source of truth (`campaign.cfg` for coop, `bizzyload.cfg` for the match chain), plus the `cfgogl/<mode>/` matchmode config library. |
+| `cfg/sourcemod/` | Per-plugin SourceMod cvar configs. |
+| `addons/sourcemod/plugins/` | Compiled `.smx` — `bizzymod/` (custom), `anticheat/` (SourceBans++ + lilac), `optional/` (loaded explicitly), `disabled/` (deploy-time quarantine). |
+| `addons/sourcemod/scripting/` | `.sp` sources for the Bizzymod plugins + vendored `bizzymod_stats/`. |
+| `scripts/vscripts/` | Squirrel VScripts (can override the Director at engine level). |
+| `deploy.env` | Per-server manifest: zonemod overlay on/off, matchmode quarantine, fixes to disable, SourceMod line. **Not shipped.** |
+
+</details>
+
+---
+
+## 🌍 Environments
+
+Every server deploys to **two real, public boxes**. Players can't tell which is which.
+
+| | 🟢 **prod** | 🧪 **dev** |
 |---|---|---|
-| the town | `<PROD_HOST>` | `<DEV_HOST>` |
-| the road in | ssh `1989`, root | ssh `1989`, root |
+| Host | `<PROD_HOST>` | `<DEV_HOST>` |
+| SSH | port `1989`, `root` | port `1989`, `root` |
+| Posture | kept spotless | torn down + rebuilt freely |
 
-`prod` is the town we keep spotless. `dev` we're harder on — we ride in, tear down
-whatever fool built something wrong, and put it back the way it ought to be.
-
----
-
-## The Marshal
-
-There's just one man does the riding: a **self-hosted Linux runner**, wearing the
-badges `self-hosted` and `Linux`, registered under the bogware brand. He builds the
-plugins and he carries them to town — he's the only one with a horse fast enough to
-reach both. He keeps his own tools on his belt (`sshpass`, `rsync`, `curl`, `tar`);
-if he's missing one, he'll tell you straight and won't ride till it's fixed.
+Per-target credentials live in the **GitHub Environment `<server>-<environment>`**
+(e.g. `bizzymod-prod`, `campaign-dev`). Shared database creds are repo-level
+secrets — every server banks at the same stats + SourceBans databases. The full
+key list is in **[`DEPLOY.md`](DEPLOY.md)**.
 
 ---
 
-## Riding Out
+## 🚢 Deploying
 
-You don't deploy by accident around here. Nothing rides on its own — no push, no
-merge, ever puts a man on the road. You send him, by name, to a town:
+**Manual only.** No push, no merge ever auto-deploys — you send a specific server to
+a specific environment, by hand:
 
 ```sh
-gh workflow run deploy.yml -f server=campaign -f environment=dev
-# or saddle up from the Actions tab: Deploy ▸ Run workflow
+gh workflow run deploy.yml -f server=bizzymod -f environment=dev
+# …or the Actions tab ▸ Deploy ▸ Run workflow
 ```
 
-He'll compile the town's plugins, lay the zonemod ground where it's called for —
-scraping the old town clean down to the boards first — token the cfgs, drop the
-Bizzymod outfit on top, set the locks, and light the lamps. Then he waits five
-seconds, looks back down the street, and makes sure `srcds_run` is still standing.
-If it isn't, he says so.
+```mermaid
+flowchart LR
+    Op["👤 Operator"] -->|"server + environment"| GA["⚙️ GitHub<br/>Actions"]
+    GA --> R["🖥️ Self-hosted<br/>Linux runner"]
+    R --> S1["① compile<br/>bizzymod .sp → .smx"]
+    S1 --> S2["② lay zonemod<br/>v1.0.0 overlay"]
+    S2 --> S3["③ token-replace<br/>#{…}# cfgs"]
+    S3 --> S4["④ rsync + restart<br/>over SSH"]
+    S4 --> Box[("🎮 game box<br/>prod / dev")]
+    Box --> V["⑤ verify srcds_run"]
+```
 
-The same man rides for two other errands when you call: **`diagnose.yml`** (he
-reads the town's logs back to you) and **`migrate-stats.yml`** (he squares the
-books — the stats database).
-
----
-
-## The Strongbox
-
-A marshal doesn't carry the keys in his pocket where any pickpocket can lift them.
-Each town's keys — the SSH password, the RCON, the sudo — live locked in that
-town's **GitHub Environment** (`campaign-prod`, `campaign-dev`), same names, kept
-apart. The bank ledgers — the shared stats and SourceBans database creds — those
-are held once, repo-wide, since every town banks at the same house.
-
-The full list of what goes in the strongbox, and where, is written in
-**[`DEPLOY.md`](DEPLOY.md)**. Read it before you set a single key.
+Two sibling workflows take the same `server` / `environment` inputs:
+**`diagnose.yml`** (reads the logs back to you) and **`migrate-stats.yml`** (squares
+the stats database).
 
 ---
 
-## Trouble on the Line
+## 📏 Conventions worth knowing
 
-Word came down the wire the Smokers had gone bad — grabbing a man and never
-dragging him in. Wasn't the difficulty, wasn't the rates. It was three
-competitive tongue plugins zonemod ships, meddling where they had no business in a
-coop town. We ran them out. `campaign.cfg` keeps them out for good now. A town's
-only as quiet as the last piece of trouble you handled.
+- **Campaign is coop-only.** Single mode, single plugin set — no matchmode framework. Don't reintroduce one.
+- **Self-contained servers.** Never factor shared plugins into a common tree; each `servers/<name>/` carries its own copy.
+- **Adding a plugin** = drop the `.smx` in the right tray **and** wire it up. Auto-load trays load at boot; `optional/` loads explicitly. During a `confoglcompmod` match, only plugins in the explicit match-chain lists survive `unload_all`.
+- **Token placeholders** `#{TokenName}#` in cfgs are replaced at deploy time — don't "fix" them to literals.
+- **SourceMod version matters** — `SOURCEMOD_VERSION` in `deploy.env` must match what the runtime ships, or ABI drift silently corrupts plugin behavior.
+- **Line endings stay LF** (`.gitattributes` enforces it) — CRLF on the box breaks shell scripts.
+
+The complete house rules — for humans and for AI assistants — are in
+**[`CLAUDE.md`](CLAUDE.md)**.
 
 ---
 
-## The Law of the Land
+## 📚 Docs
 
-Every rule that keeps this territory from going wild — coop stays coop, towns stay
-self-contained, tokens stay tokens, line-endings stay honest — is written down
-plain in **[`CLAUDE.md`](CLAUDE.md)**. A man rides in not knowing the law, he reads
-that first.
+| Doc | Read it for |
+|---|---|
+| **[`DEPLOY.md`](DEPLOY.md)** | The full deploy model, environments, and the secret/var matrix |
+| **[`CLAUDE.md`](CLAUDE.md)** | Repo conventions, gotchas, and the law of the land |
+| **[`guide/`](guide/)** | Standing up your own L4D2 box from bare metal |
 
-> Now I don't know that there's a moral to any of it. Out here you do your job, you
-> keep the town standing, and you ride out again. That's about all a man can say.
+---
+
+<div align="center">
+<sub>Licensed under <b><a href="LICENSE">GPL-3.0</a></b> · Built for the Bizzymod L4D2 community</sub>
+</div>

@@ -1,6 +1,7 @@
 // l4d2_spawn_props translation phrases.
-// Plugin LoadTranslations()'s this file; missing it causes a fatal parse error
-// at OnPluginStart. Keys are the literal strings the plugin passes to %T.
+// Plugin LoadTranslations()'s this file; keys are the literal strings the plugin
+// passes to %t/%T. Menu phrases added so the SM error log stops spamming
+// "Language phrase ... not found". English value == key for the plain menu strings.
 
 "Phrases"
 {
@@ -27,5 +28,349 @@
     {
         "#format"   "{1:f},{2:f},{3:f}"
         "en"        "Angle: {1} {2} {3}"
+    }
+    "Are you sure(Delete All)?"
+    {
+        "en"    "Are you sure(Delete All)?"
+    }
+    "Are you sure?"
+    {
+        "en"    "Are you sure?"
+    }
+    "Back 1 degree (X axys)"
+    {
+        "en"    "Back 1 degree (X axys)"
+    }
+    "Back 1 degree (Y axys)"
+    {
+        "en"    "Back 1 degree (Y axys)"
+    }
+    "Back 1 degree (Z axys)"
+    {
+        "en"    "Back 1 degree (Z axys)"
+    }
+    "Back 10 degree (X axys)"
+    {
+        "en"    "Back 10 degree (X axys)"
+    }
+    "Back 10 degree (Y axys)"
+    {
+        "en"    "Back 10 degree (Y axys)"
+    }
+    "Back 10 degree (Z axys)"
+    {
+        "en"    "Back 10 degree (Z axys)"
+    }
+    "Back 15 degree (X axys)"
+    {
+        "en"    "Back 15 degree (X axys)"
+    }
+    "Back 15 degree (Y axys)"
+    {
+        "en"    "Back 15 degree (Y axys)"
+    }
+    "Back 15 degree (Z axys)"
+    {
+        "en"    "Back 15 degree (Z axys)"
+    }
+    "Clone"
+    {
+        "en"    "Clone"
+    }
+    "Decorative"
+    {
+        "en"    "Decorative"
+    }
+    "Delete All Objects"
+    {
+        "en"    "Delete All Objects"
+    }
+    "Delete Last Object"
+    {
+        "en"    "Delete Last Object"
+    }
+    "Delete Looking Object"
+    {
+        "en"    "Delete Looking Object"
+    }
+    "Delete Object"
+    {
+        "en"    "Delete Object"
+    }
+    "Edit Object"
+    {
+        "en"    "Edit Object"
+    }
+    "Exterior"
+    {
+        "en"    "Exterior"
+    }
+    "Foliage"
+    {
+        "en"    "Foliage"
+    }
+    "Info"
+    {
+        "en"    "Info"
+    }
+    "Interior"
+    {
+        "en"    "Interior"
+    }
+    "Items"
+    {
+        "en"    "Items"
+    }
+    "Lock"
+    {
+        "en"    "Lock"
+    }
+    "Melees"
+    {
+        "en"    "Melees"
+    }
+    "Misc"
+    {
+        "en"    "Misc"
+    }
+    "Move"
+    {
+        "en"    "Move"
+    }
+    "Move Backward 1 Unit"
+    {
+        "en"    "Move Backward 1 Unit"
+    }
+    "Move Backward 10 Unit"
+    {
+        "en"    "Move Backward 10 Unit"
+    }
+    "Move Backward 30 Unit"
+    {
+        "en"    "Move Backward 30 Unit"
+    }
+    "Move Down 1 Unit"
+    {
+        "en"    "Move Down 1 Unit"
+    }
+    "Move Down 10 Unit"
+    {
+        "en"    "Move Down 10 Unit"
+    }
+    "Move Down 30 Unit"
+    {
+        "en"    "Move Down 30 Unit"
+    }
+    "Move Forward 1 Unit"
+    {
+        "en"    "Move Forward 1 Unit"
+    }
+    "Move Forward 10 Unit"
+    {
+        "en"    "Move Forward 10 Unit"
+    }
+    "Move Forward 30 Unit"
+    {
+        "en"    "Move Forward 30 Unit"
+    }
+    "Move Left 1 Unit"
+    {
+        "en"    "Move Left 1 Unit"
+    }
+    "Move Left 10 Unit"
+    {
+        "en"    "Move Left 10 Unit"
+    }
+    "Move Left 30 Unit"
+    {
+        "en"    "Move Left 30 Unit"
+    }
+    "Move Right 1 Unit"
+    {
+        "en"    "Move Right 1 Unit"
+    }
+    "Move Right 10 Unit"
+    {
+        "en"    "Move Right 10 Unit"
+    }
+    "Move Right 30 Unit"
+    {
+        "en"    "Move Right 30 Unit"
+    }
+    "Move Up 1 Unit"
+    {
+        "en"    "Move Up 1 Unit"
+    }
+    "Move Up 10 Unit"
+    {
+        "en"    "Move Up 10 Unit"
+    }
+    "Move Up 30 Unit"
+    {
+        "en"    "Move Up 30 Unit"
+    }
+    "No"
+    {
+        "en"    "No"
+    }
+    "Others"
+    {
+        "en"    "Others"
+    }
+    "Rotate"
+    {
+        "en"    "Rotate"
+    }
+    "Rotate 1 degree (X axys)"
+    {
+        "en"    "Rotate 1 degree (X axys)"
+    }
+    "Rotate 1 degree (Y axys)"
+    {
+        "en"    "Rotate 1 degree (Y axys)"
+    }
+    "Rotate 1 degree (Z axys)"
+    {
+        "en"    "Rotate 1 degree (Z axys)"
+    }
+    "Rotate 10 degree (X axys)"
+    {
+        "en"    "Rotate 10 degree (X axys)"
+    }
+    "Rotate 10 degree (Y axys)"
+    {
+        "en"    "Rotate 10 degree (Y axys)"
+    }
+    "Rotate 10 degree (Z axys)"
+    {
+        "en"    "Rotate 10 degree (Z axys)"
+    }
+    "Rotate 15 degree (X axys)"
+    {
+        "en"    "Rotate 15 degree (X axys)"
+    }
+    "Rotate 15 degree (Y axys)"
+    {
+        "en"    "Rotate 15 degree (Y axys)"
+    }
+    "Rotate 15 degree (Z axys)"
+    {
+        "en"    "Rotate 15 degree (Z axys)"
+    }
+    "Rotate 180 degree (X axys)"
+    {
+        "en"    "Rotate 180 degree (X axys)"
+    }
+    "Rotate 180 degree (Y axys)"
+    {
+        "en"    "Rotate 180 degree (Y axys)"
+    }
+    "Rotate 180 degree (Z axys)"
+    {
+        "en"    "Rotate 180 degree (Z axys)"
+    }
+    "Rotate 45 degree (X axys)"
+    {
+        "en"    "Rotate 45 degree (X axys)"
+    }
+    "Rotate 45 degree (Y axys)"
+    {
+        "en"    "Rotate 45 degree (Y axys)"
+    }
+    "Rotate 45 degree (Z axys)"
+    {
+        "en"    "Rotate 45 degree (Z axys)"
+    }
+    "Rotate 90 degree (X axys)"
+    {
+        "en"    "Rotate 90 degree (X axys)"
+    }
+    "Rotate 90 degree (Y axys)"
+    {
+        "en"    "Rotate 90 degree (Y axys)"
+    }
+    "Rotate 90 degree (Z axys)"
+    {
+        "en"    "Rotate 90 degree (Z axys)"
+    }
+    "Save Objects"
+    {
+        "en"    "Save Objects"
+    }
+    "Save Stripper File"
+    {
+        "en"    "Save Stripper File"
+    }
+    "Select The Save Method"
+    {
+        "en"    "Select The Save Method"
+    }
+    "Select a task:"
+    {
+        "en"    "Select a task:"
+    }
+    "Select an action:"
+    {
+        "en"    "Select an action:"
+    }
+    "Select the delete task"
+    {
+        "en"    "Select the delete task"
+    }
+    "Select the spawn method"
+    {
+        "en"    "Select the spawn method"
+    }
+    "Spawn Items On Cursor"
+    {
+        "en"    "Spawn Items On Cursor"
+    }
+    "Spawn Items On Origin"
+    {
+        "en"    "Spawn Items On Origin"
+    }
+    "Spawn Non-solid On Cursor"
+    {
+        "en"    "Spawn Non-solid On Cursor"
+    }
+    "Spawn Non-solid On Origin"
+    {
+        "en"    "Spawn Non-solid On Origin"
+    }
+    "Spawn Objects"
+    {
+        "en"    "Spawn Objects"
+    }
+    "Spawn Physics On Cursor"
+    {
+        "en"    "Spawn Physics On Cursor"
+    }
+    "Spawn Physics On Origin"
+    {
+        "en"    "Spawn Physics On Origin"
+    }
+    "Spawn Solid On Cursor"
+    {
+        "en"    "Spawn Solid On Cursor"
+    }
+    "Spawn Solid On Origin"
+    {
+        "en"    "Spawn Solid On Origin"
+    }
+    "The file already exists."
+    {
+        "en"    "The file already exists."
+    }
+    "Vehicles"
+    {
+        "en"    "Vehicles"
+    }
+    "Weapons"
+    {
+        "en"    "Weapons"
+    }
+    "Yes"
+    {
+        "en"    "Yes"
     }
 }

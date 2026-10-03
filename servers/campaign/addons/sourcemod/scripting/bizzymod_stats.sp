@@ -47,6 +47,19 @@ ConVar g_cvDifficultyMultiplier;
 ConVar g_cvEnableNegativeScore;
 ConVar g_cvLogEvents;
 ConVar g_cvBotMultiplier;       // declared for future bot-related penalty scaling
+ConVar g_cvVersusMutations;     // mutation gamemodes to record as Realism-Versus (Dugout: "mutation12")
+
+// -----------------------------------------------------------------------------
+// Plugin load. IsInReady() (readyup.smx) is used ONLY by the versus liveness
+// fallback to avoid promoting a phantom during ready-up; mark it optional so this
+// plugin still loads on coop servers that don't run readyup.smx.
+// -----------------------------------------------------------------------------
+
+public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
+{
+    MarkNativeAsOptional("IsInReady");
+    return APLRes_Success;
+}
 
 // -----------------------------------------------------------------------------
 // Module sources. Order matters only for compile-time symbol resolution;
@@ -126,10 +139,19 @@ public void OnPluginStart()
     Bizzy_OnMotdInit();
     Bizzy_OnCommandsInit();
 
-    // Admin menu (optional dep on adminmenu)
-    TopMenu menu = GetAdminTopMenu();
-    if (menu != null)
-        OnAdminMenuReady(menu);
+    // Admin menu (optional dep on adminmenu). Only query the native directly if
+    // the adminmenu library is loaded; otherwise the OnAdminMenuReady forward
+    // registers the menu when adminmenu (re)loads. Without this guard,
+    // GetAdminTopMenu() is an UNBOUND native whenever this plugin loads before
+    // adminmenu.smx — which happens inside the confoglcompmod match chain (loaded
+    // right after `sm plugins unload_all`, before adminmenu is refreshed) — and
+    // the unbound-native error aborts OnPluginStart, dropping the whole plugin.
+    if (LibraryExists("adminmenu"))
+    {
+        TopMenu menu = GetAdminTopMenu();
+        if (menu != null)
+            OnAdminMenuReady(menu);
+    }
 }
 
 public void OnAllPluginsLoaded()
@@ -171,6 +193,8 @@ public void OnClientDisconnect(int client)
 {
     if (IsFakeClient(client) || !g_Clients[client].inUse)
         return;
+    // Drop the versus team letter first so a reused client slot can't inherit it.
+    Bizzy_Versus_OnClientDisconnect(client);
     Bizzy_EndClientSession(client);
 }
 

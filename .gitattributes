@@ -1,6 +1,15 @@
 # Auto detect text files and perform LF normalization
 * text=auto
 
+# Game-server binaries — force binary (never LF-normalize; would corrupt them)
+*.smx   binary
+*.so    binary
+*.dll   binary
+*.vpk   binary
+*.mmdb  binary
+*.sq3   binary
+*.cache binary
+
 # Custom for Visual Studio
 *.cs     diff=csharp
 

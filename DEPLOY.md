@@ -15,7 +15,8 @@ gh workflow run deploy.yml -f server=campaign -f environment=dev
 ## The model
 
 - **server** = a game mode under `servers/<server>/` (self-contained overlay).
-  Currently only `campaign` is wired; `competitive` and `vanilla` are scaffolds.
+  Wired: `campaign` (coop), `vanilla` (Flat's Hole versus), `bizzymod` (Bizzy's
+  Dugout realism-versus). `competitive` is still an empty scaffold.
 - **environment** = `dev` or `prod`. Both are real, public servers; players don't
   notice which is which.
 - The job binds to the **GitHub Environment `<server>-<environment>`** (e.g.
@@ -34,7 +35,10 @@ verify `srcds_run` is alive.
 
 ---
 
-## The two current targets
+## The targets
+
+Campaign is the template below (dev + prod); Flat's Hole and Bizzy's Dugout follow
+it, sharing the prod box under their own users — see the two subsections that follow.
 
 | | **campaign-prod** | **campaign-dev** |
 |---|---|---|
@@ -48,6 +52,51 @@ verify `srcds_run` is alive.
 `prod` is the box we harden first; `dev` shares the machine with other servers, so
 deploys there target only the `/home/campaign` install (and blow away whatever
 campaign build was there before).
+
+### Flat's Hole (vanilla versus) — `vanilla-prod`
+
+Shares the campaign **prod** box, under its own user:
+
+| | **vanilla-prod** |
+|---|---|
+| SSH host / port / user | `<PROD_HOST>` / `1989` / `root` (same as campaign-prod) |
+| Install (`REMOTE_TARGET_FOLDER`) | `/home/flatshole/Steam/steamapps/common/l4d2/left4dead2` |
+| srcds user (`SRCDS_USER`) | `flatshole` |
+| init (`INIT_PATH`) | `/etc/init.d/srcdsFlatsHole` |
+| srcds port | `27017` |
+| `SERVER_NAME` | `Flat's Hole` |
+| `RCON_PASS` | same as campaign (reused) |
+| `SB_SERVERID` | `6` (prod) — sbpp_comms needs a valid, non-zero SourceBans server id |
+
+So the `vanilla-prod` Environment reuses campaign-prod's `SSH_HOST` / `SSH_PASSWORD`
+/ `SUDO_PASSWORD` / `RCON_PASS`, with `REMOTE_TARGET_FOLDER`, `SRCDS_USER`,
+`INIT_PATH`, `SERVER_NAME` (and `SSH_PORT`/`SSH_USER`) set to the values above.
+
+### Bizzy's Dugout (bizzymod realism-versus) — `bizzymod-prod`
+
+The **main mode** — the competitive realism-versus server (full confoglcompmod
+matchmode, zonemod v1.0.0 base + bizzymod overlay). Shares the campaign **prod**
+box, under its own user:
+
+| | **bizzymod-prod** |
+|---|---|
+| SSH host / port / user | `<PROD_HOST>` / `1989` / `root` (same as campaign-prod) |
+| Install (`REMOTE_TARGET_FOLDER`) | `/home/bizzymod/Steam/steamapps/common/l4d2/left4dead2` |
+| srcds user (`SRCDS_USER`) | `bizzymod` |
+| init (`INIT_PATH`) | `/etc/init.d/srcdsBizzymod` |
+| srcds port | `27015` |
+| `SERVER_NAME` | `Bizzy's Dugout` |
+| `RCON_PASS` | its own (or reuse campaign's) |
+| `SB_SERVERID` | `1` (prod) / `3` (dev) — sbpp_comms needs a valid, non-zero SourceBans server id |
+
+So the `bizzymod-prod` Environment reuses campaign-prod's `SSH_HOST` /
+`SSH_PASSWORD` / `SUDO_PASSWORD`, with `REMOTE_TARGET_FOLDER`, `SRCDS_USER`,
+`INIT_PATH`, `SERVER_NAME`, `RCON_PASS` (and `SSH_PORT`/`SSH_USER`) set to the
+values above. Unlike campaign, `deploy.env` here keeps matchmode **enabled**
+(`QUARANTINE_MATCHMODE=false`).
+
+> Note: this server owns `sv_search_key "bizzymod"`; campaign was moved to
+> `sv_search_key "bizzymod-campaign"` so bizzymod lobbies route here.
 
 ---
 
@@ -78,6 +127,7 @@ Create `campaign-dev` and `campaign-prod`. Each gets:
 | `SERVER_NAME` | hostname, e.g. `Bizzymod Campaign` (prod) / `Bizzymod Campaign [DEV]` (dev) |
 | `HOST_BANNER` | host.txt banner text |
 | `HOST_MOTD` | motd text |
+| `SB_SERVERID` | this env's SourceBans server id (from the `bans_servers` table) — sbpp_comms requires a valid, non-zero id. e.g. bizzymod-prod=`1`, bizzymod-dev=`3` |
 
 ### Shared — **repo-level** (`Settings ▸ Secrets and variables ▸ Actions`)
 

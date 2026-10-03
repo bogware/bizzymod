@@ -11,7 +11,9 @@ on:
         type: choice
         options:
           - campaign
-        # competitive / vanilla get added here once servers/<name>/ is populated.
+          - vanilla
+          - bizzymod
+        # competitive gets added here once servers/competitive/ is populated.
         default: campaign
       environment:
         description: "Target environment (selects the GitHub Environment <server>-<environment>)"
@@ -145,6 +147,9 @@ jobs:
           SOURCEBANS_PORT:    ${{ vars.SOURCEBANS_PORT }}
           SOURCEBANS_USER:    ${{ vars.SOURCEBANS_USER }}
           SOURCEBANS_PASS:    ${{ secrets.SOURCEBANS_PASS }}
+          # Per-environment SourceBans server id (sbpp_comms hard-requires a valid, non-zero id).
+          # Set in the GitHub Environment: e.g. bizzymod-prod=1, bizzymod-dev=3.
+          SB_SERVERID:        ${{ vars.SB_SERVERID }}
         run: |
           chmod +x .deploy/replace-tokens.sh
           .deploy/replace-tokens.sh "${{ steps.manifest.outputs.server_dir }}"
