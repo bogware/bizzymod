@@ -19,8 +19,6 @@ fi
 TOKENS=(
     "Server_Name=SERVER_NAME"
     "RCON_Pass=RCON_PASS"
-    "HostBanner=HOST_BANNER"
-    "HostMOTD=HOST_MOTD"
     "l4dstats_DB=L4DSTATS_DB"
     "l4dstats_DB_IP=L4DSTATS_DB_IP"
     "l4dstats_Port=L4DSTATS_PORT"

@@ -3,7 +3,12 @@ name: Deploy
 on:
   # MANUAL ONLY. No push trigger — merging a PR never auto-deploys. Pick the
   # server (game mode) and the environment (dev/prod) when you run it.
-  #   Actions -> Deploy -> Run workflow   (or: gh workflow run deploy.yml -f server=campaign -f environment=dev)
+  #   Actions -> Deploy -> Run workflow   (or: gh workflow run deploy.yml -f server=bizzymod -f environment=prod)
+  #
+  # STATUS (2026-10): CI deploys are NOT wired yet. The per-target GitHub
+  # Environments (<server>-<environment>, e.g. bizzymod-prod) and their
+  # secrets/vars do not exist, so a run fails fast at the Preflight step below.
+  # Manual tar/rsync is the canonical deploy path today — see DEPLOY.md.
   workflow_dispatch:
     inputs:
       server:
@@ -21,7 +26,10 @@ on:
         options:
           - dev
           - prod
-        default: dev
+        # prod is the only environment with a documented target; dev is manual
+        # (see DEPLOY.md). Default to prod so a stray run doesn't silently aim
+        # at an unwired dev target.
+        default: prod
       skip_steam_update:
         description: "Skip steamcmd app_update (anonymous L4D2 installs are Valve-blocked; only runs when STEAM_USER/STEAM_PASS secrets are set)"
         type: boolean
@@ -46,6 +54,21 @@ jobs:
     timeout-minutes: 30
 
     steps:
+      # ----------------------------------------------------------------------
+      # FAIL-SAFE: CI deploys are not wired yet (no <server>-<environment>
+      # GitHub Environment / secrets exist). Turn an accidental run into a
+      # clear, early failure instead of a confusing half-deploy against an
+      # empty environment. Remove this step once the Environments are created.
+      - name: Preflight — refuse to run until this environment is wired
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+        run: |
+          if [ -z "${SSH_HOST}" ]; then
+            echo "::error::CI is not wired for '${{ inputs.server }}-${{ inputs.environment }}' (no such GitHub Environment / secrets). Deploy manually — see DEPLOY.md (## Status: CI is not wired yet)."
+            exit 1
+          fi
+          echo "Environment '${{ inputs.server }}-${{ inputs.environment }}' is wired; proceeding."
+
       # ----------------------------------------------------------------------
       - name: Checkout monorepo
         uses: actions/checkout@v5
@@ -100,7 +123,7 @@ jobs:
 
       # ----------------------------------------------------------------------
       - name: Setup SourcePawn compiler (match server's SourceMod line)
-        uses: rumblefrog/setup-sp@master
+        uses: rumblefrog/setup-sp@1b616aebc2c70430364571e2b4ad4b719164c1f7 # v1.3.1
         with:
           version: ${{ steps.manifest.outputs.sourcemod_version }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -130,8 +153,6 @@ jobs:
         env:
           # Per-environment identity (from the GitHub Environment):
           SERVER_NAME:        ${{ vars.SERVER_NAME }}
-          HOST_BANNER:        ${{ vars.HOST_BANNER }}
-          HOST_MOTD:          ${{ vars.HOST_MOTD }}
           RCON_PASS:          ${{ secrets.RCON_PASS }}
           SRCDS_USER:         ${{ vars.SRCDS_USER }}
           REMOTE_TARGET_FOLDER: ${{ vars.REMOTE_TARGET_FOLDER }}

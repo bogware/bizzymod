@@ -12,6 +12,24 @@ gh workflow run deploy.yml -f server=campaign -f environment=dev
 
 ---
 
+## Status: CI is not wired yet — **manual deploy is canonical** (2026-10)
+
+The GitHub Actions workflows described below are the *intended* automated path,
+but they are **not operational today**: the per-target GitHub Environments
+(`<server>-<environment>`, e.g. `bizzymod-prod`) and their secrets/vars **do not
+exist**, and no monorepo-era deploy has ever run through CI (the last Actions
+deploy was the pre-monorepo push model in mid-2026). A dispatched run now fails
+fast at each workflow's **Preflight** guard.
+
+Every server in the fleet today was deployed **by hand** — tar the
+`servers/<server>/` overlay, `pscp`/`rsync` it to the box, and run an on-box
+overlay script onto the zonemod base. So the **GitHub configuration** section
+below is a **spec for wiring CI later**, not a description of what's live. Until
+someone creates those Environments, the manual path (and the **Dev box fleet**
+notes) are the source of truth.
+
+---
+
 ## The model
 
 - **server** = a game mode under `servers/<server>/` (self-contained overlay).
@@ -49,9 +67,12 @@ it, sharing the prod box under their own users — see the two subsections that 
 | srcds user (`SRCDS_USER`) | `campaign` | `campaign` |
 | srcds port | `27016` | `27016` |
 
-`prod` is the box we harden first; `dev` shares the machine with other servers, so
-deploys there target only the `/home/campaign` install (and blow away whatever
-campaign build was there before).
+`prod` is the box we harden first. **Caution — `campaign-dev` is stale:** on
+2026-10-12 the `/home/campaign` install on the dev box (`<DEV_HOST>`) was
+repurposed into **Bizzy's Secret Sauce** (the `vanilla` overlay). There is no
+campaign-coop server on dev anymore, and a `campaign-dev` deploy to the path
+above would **clobber Secret Sauce**. Dev is deployed manually — see the **Dev
+box fleet** section below.
 
 ### Flat's Hole (vanilla versus) — `vanilla-prod`
 
@@ -98,6 +119,32 @@ values above. Unlike campaign, `deploy.env` here keeps matchmode **enabled**
 > Note: this server owns `sv_search_key "bizzymod"`; campaign was moved to
 > `sv_search_key "bizzymod-campaign"` so bizzymod lobbies route here.
 
+### Dev box fleet (`<DEV_HOST>`) — manual deploy, 2026-10-12
+
+The dev box was repurposed into its **own live 2-server fleet** (the CI `deploy.yml`
+path has no dev Environments yet, so these were deployed **manually**: tar the repo
+overlay → `pscp` to `/root` → on-box overlay script onto the existing zonemod base).
+It has **3.8 GB RAM / no swap**, so it runs **two** servers, not three.
+
+| | **Bizzy's Playhouse** | **Bizzy's Secret Sauce** |
+|---|---|---|
+| overlay | `servers/bizzymod` (= Dugout) | `servers/vanilla` (= Flat's Hole) |
+| srcds user / init | `bizzymod` / `srcdsBizzymod` | `campaign` / `srcdsCampaign` (reused) |
+| srcds port | `27015` | `27016` |
+| mode | versus (matchmode on) | vanilla |
+| **stats** | **ON** — self-registered `server_id=517` in the shared DB, distinct from Dugout (246) / Campaign (218) | **OFF** — `bizzymod_stats` load line commented in `flatshole.cfg` |
+
+`server_id` is auto-assigned from the random per-install
+`addons/sourcemod/data/bizzymod_stats.server_key` (deleting it before first boot
+forces a fresh id — never copy another install's keyfile). Secret Sauce is a
+placeholder to customize later; when it diverges from vanilla, fork
+`servers/vanilla` → `servers/secretsauce` for its **own git lineage**.
+
+**Retired `_legacy`:** `bizzymoon` ("Moonmod") — stopped, de-croned, init →
+`srcdsBizzymoon.legacy`, home → `/home/bizzymoon_legacy`. The old `campaign`
+("Part Deux") identity was overwritten to become Secret Sauce. Rollback snapshots:
+`/home/_legacy_snapshots/2026-10-12/`.
+
 ---
 
 ## GitHub configuration
@@ -125,9 +172,11 @@ Create `campaign-dev` and `campaign-prod`. Each gets:
 | `SRCDS_USER` | `campaign` |
 | `INIT_PATH` | init script that start/stops srcds, e.g. `/etc/init.d/srcdsCampaign` |
 | `SERVER_NAME` | hostname, e.g. `Bizzymod Campaign` (prod) / `Bizzymod Campaign [DEV]` (dev) |
-| `HOST_BANNER` | host.txt banner text |
-| `HOST_MOTD` | motd text |
 | `SB_SERVERID` | this env's SourceBans server id (from the `bans_servers` table) — sbpp_comms requires a valid, non-zero id. e.g. bizzymod-prod=`1`, bizzymod-dev=`3` |
+
+> Host banner / MOTD are **literal `.txt` files** in each overlay
+> (`servers/<server>/{host,motd}.txt`, pointing at `bizzymod.com`), not deploy
+> tokens — there is no `HOST_BANNER`/`HOST_MOTD` var to set.
 
 ### Shared — **repo-level** (`Settings ▸ Secrets and variables ▸ Actions`)
 

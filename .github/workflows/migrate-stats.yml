@@ -13,6 +13,11 @@ name: Migrate stats DB
 #   5. (via SSH) import legacy data via migrate-legacy-stats.py
 #
 # Credentials are reused from the existing L4DSTATS_* + SSH_* vars/secrets.
+#
+# STATUS (2026-10): like the deploy workflow, this is NOT wired yet — the
+# per-target GitHub Environments / secrets don't exist, so a run fails fast at
+# the Preflight step. The shared stats DB schema is already applied on the live
+# box; this workflow is for future bootstraps / legacy imports. See DEPLOY.md.
 
 on:
   workflow_dispatch:
@@ -26,7 +31,7 @@ on:
         description: "Target environment"
         type: choice
         options: [dev, prod]
-        default: dev
+        default: prod   # dev is manual/unwired; see DEPLOY.md
       dry_run:
         description: "Dry-run: count rows we would write but don't actually write"
         type: boolean
@@ -47,6 +52,17 @@ jobs:
     timeout-minutes: 30
 
     steps:
+      # FAIL-SAFE: this environment isn't wired yet (no secrets). Fail early
+      # and clearly instead of erroring deep in the migration. See DEPLOY.md.
+      - name: Preflight — refuse to run until this environment is wired
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+        run: |
+          if [ -z "${SSH_HOST}" ]; then
+            echo "::error::CI is not wired for '${{ inputs.server }}-${{ inputs.environment }}' (no such GitHub Environment / secrets). See DEPLOY.md (## Status: CI is not wired yet)."
+            exit 1
+          fi
+
       - name: Checkout this repo
         uses: actions/checkout@v5
 

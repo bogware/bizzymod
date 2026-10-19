@@ -1,5 +1,11 @@
 -- -----------------------------------------------------------------------------
--- 007_versus_stat_model.sql
+-- 015_versus_stat_model.sql
+--
+-- Runs LAST: its view reads player_versus_stats columns (maps_won/maps_lost,
+-- streaks, matches_*) that the versus-track migrations 008-014 add, and the
+-- DROP below removes columns no longer written by plugin >= 0.7.4. (Was
+-- numbered 007 and collided with 007_extended_stats.sql — same version prefix
+-- is migrate.py's PRIMARY KEY, which aborted a fresh apply; renumbered to 015.)
 --
 -- Versus stat-model cleanup (see CHANGELOG 0.7.4):
 --   * A versus HALF has no individual winner — the chapter is decided by comparing

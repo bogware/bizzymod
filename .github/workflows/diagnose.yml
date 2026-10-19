@@ -3,6 +3,9 @@ name: Diagnose server
 # One-shot validation workflow. Verifies the stats DB has the migrated
 # data, dumps the most recent SourceMod errors log from the game server,
 # and surfaces missing gamedata files / plugin load failures.
+#
+# STATUS (2026-10): not wired yet — the per-target GitHub Environments /
+# secrets don't exist, so a run fails fast at the Preflight step. See DEPLOY.md.
 
 on:
   workflow_dispatch:
@@ -16,7 +19,7 @@ on:
         description: "Target environment"
         type: choice
         options: [dev, prod]
-        default: dev
+        default: prod   # dev is manual/unwired; see DEPLOY.md
       sample_steamid:
         description: "Optional STEAM_X:Y:Z to look up in the stats DB"
         type: string
@@ -29,6 +32,17 @@ jobs:
     timeout-minutes: 15
 
     steps:
+      # FAIL-SAFE: this environment isn't wired yet (no secrets). Fail early
+      # and clearly instead of erroring deep in the diagnostics. See DEPLOY.md.
+      - name: Preflight — refuse to run until this environment is wired
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+        run: |
+          if [ -z "${SSH_HOST}" ]; then
+            echo "::error::CI is not wired for '${{ inputs.server }}-${{ inputs.environment }}' (no such GitHub Environment / secrets). See DEPLOY.md (## Status: CI is not wired yet)."
+            exit 1
+          fi
+
       - name: Checkout this repo
         uses: actions/checkout@v5
 
