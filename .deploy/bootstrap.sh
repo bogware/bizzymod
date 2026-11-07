@@ -25,8 +25,8 @@
 #  15. Summary + next-step pointer
 #
 # USAGE
-#   git clone https://github.com/<you>/bizzymod-campaign.git
-#   cd bizzymod-campaign
+#   git clone https://github.com/<you>/bizzymod.git
+#   cd bizzymod
 #   sudo SSH_USER=youradmin bash .deploy/bootstrap.sh
 #
 # KNOBS (env vars, all optional; defaults shown)

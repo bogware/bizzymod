@@ -27,7 +27,7 @@ Every server deploys to **two real, public environments**: `dev` and `prod`
 | | prod | dev |
 |---|---|---|
 | host | `<PROD_HOST>` | `<DEV_HOST>` |
-| SSH | `1989`, root | `1989`, root |
+| SSH | `<SSH_PORT>`, `<SSH_USER>` | `<SSH_PORT>`, `<SSH_USER>` |
 | campaign install | `/home/campaign/Steam/steamapps/common/l4d2/left4dead2` | same path |
 
 Deploys run on a **self-hosted Linux runner** (bogware org, labels `self-hosted` +
@@ -45,7 +45,6 @@ Deploys run on a **self-hosted Linux runner** (bogware org, labels `self-hosted`
 | `servers/<name>/` | **Yes** — `servers/<name>/` is rsync'd onto `<install>/left4dead2/` | Per-server runtime content + a `deploy.env` manifest (not shipped) |
 | `.github/workflows/` | No | All workflows for all servers (deploy, diagnose, migrate-stats) |
 | `.deploy/` | No | Build/deploy helper scripts + server-side systemd/launch/bootstrap |
-| `.cicd/` | No | Historical Azure DevOps release export (deploy source-of-truth ancestor) |
 | `guide/` | No | End-user "stand up your own L4D2 box" doc (not this repo's deploy) |
 | `legacy/`, `older-legacy/` | No | Parked historical content |
 | `CLAUDE.md` `DEPLOY.md` `README.md` `LICENSE` | No | Repo docs |

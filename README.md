@@ -77,7 +77,6 @@ refactor-into-shared.** Shared plugins are duplicated into each server on purpos
 | [`servers/<name>/`](servers/) | ✅ | Per-server runtime content, rsync'd onto the box + a `deploy.env` manifest *(not shipped)* |
 | [`.github/workflows/`](.github/workflows/) | ❌ | Every workflow — deploy, diagnose, migrate-stats |
 | [`.deploy/`](.deploy/) | ❌ | Build/deploy helper scripts + server-side systemd/launch/bootstrap |
-| [`.cicd/`](.cicd/) | ❌ | Historical Azure DevOps release export (deploy's ancestor) |
 | [`guide/`](guide/) | ❌ | End-user "stand up your own L4D2 box" doc |
 | `legacy/` | ❌ | Parked historical content |
 | `CLAUDE.md` · `DEPLOY.md` · `README.md` | ❌ | Repo docs |
@@ -108,7 +107,7 @@ Every server deploys to **two real, public boxes**. Players can't tell which is 
 | | 🟢 **prod** | 🧪 **dev** |
 |---|---|---|
 | Host | `<PROD_HOST>` | `<DEV_HOST>` |
-| SSH | port `1989`, `root` | port `1989`, `root` |
+| SSH | port `<SSH_PORT>`, `<SSH_USER>` | port `<SSH_PORT>`, `<SSH_USER>` |
 | Posture | kept spotless | torn down + rebuilt freely |
 
 Per-target credentials live in the **GitHub Environment `<server>-<environment>`**

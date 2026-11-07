@@ -29,7 +29,7 @@ public Plugin myinfo =
     author      = "bizzymod",
     description = "Precaches props that otherwise late-precache mid-round, removing hitches",
     version     = "1.0.0",
-    url         = "https://github.com/bogware/bizzymod-campaign"
+    url         = "https://github.com/bogware/bizzymod"
 };
 
 ArrayList g_Models;

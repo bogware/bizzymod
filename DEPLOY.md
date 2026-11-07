@@ -61,7 +61,7 @@ it, sharing the prod box under their own users — see the two subsections that 
 | | **campaign-prod** | **campaign-dev** |
 |---|---|---|
 | SSH host | `<PROD_HOST>` | `<DEV_HOST>` |
-| SSH port | `1989` | `1989` |
+| SSH port | `<SSH_PORT>` | `<SSH_PORT>` |
 | SSH user | `root` | `root` |
 | Install (`REMOTE_TARGET_FOLDER`) | `/home/campaign/Steam/steamapps/common/l4d2/left4dead2` | `/home/campaign/Steam/steamapps/common/l4d2/left4dead2` |
 | srcds user (`SRCDS_USER`) | `campaign` | `campaign` |
@@ -80,7 +80,7 @@ Shares the campaign **prod** box, under its own user:
 
 | | **vanilla-prod** |
 |---|---|
-| SSH host / port / user | `<PROD_HOST>` / `1989` / `root` (same as campaign-prod) |
+| SSH host / port / user | `<PROD_HOST>` / `<SSH_PORT>` / `<SSH_USER>` (same as campaign-prod) |
 | Install (`REMOTE_TARGET_FOLDER`) | `/home/flatshole/Steam/steamapps/common/l4d2/left4dead2` |
 | srcds user (`SRCDS_USER`) | `flatshole` |
 | init (`INIT_PATH`) | `/etc/init.d/srcdsFlatsHole` |
@@ -101,7 +101,7 @@ box, under its own user:
 
 | | **bizzymod-prod** |
 |---|---|
-| SSH host / port / user | `<PROD_HOST>` / `1989` / `root` (same as campaign-prod) |
+| SSH host / port / user | `<PROD_HOST>` / `<SSH_PORT>` / `<SSH_USER>` (same as campaign-prod) |
 | Install (`REMOTE_TARGET_FOLDER`) | `/home/bizzymod/Steam/steamapps/common/l4d2/left4dead2` |
 | srcds user (`SRCDS_USER`) | `bizzymod` |
 | init (`INIT_PATH`) | `/etc/init.d/srcdsBizzymod` |
@@ -166,7 +166,7 @@ Create `campaign-dev` and `campaign-prod`. Each gets:
 
 | Var | Example |
 |---|---|
-| `SSH_PORT` | `1989` |
+| `SSH_PORT` | `<SSH_PORT>` |
 | `SSH_USER` | `root` |
 | `REMOTE_TARGET_FOLDER` | `/home/campaign/Steam/steamapps/common/l4d2/left4dead2` |
 | `SRCDS_USER` | `campaign` |
