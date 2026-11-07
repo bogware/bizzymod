@@ -35,3 +35,14 @@ legacy/
 # Untracked reference snapshot of the known-good legacy overlay (carries its
 # own l4dtoolz/metamod). Kept locally as reference; never deployed/committed.
 older-legacy/
+
+# =========================
+# SourceMod runtime state — NEVER commit (contains player PII)
+# =========================
+# SQLite DBs written on the live host: sourcebans/sourcecomms ban queues carry
+# steam_id + name + IP; JockeyPounce carries steam_id + name. These are runtime
+# state, regenerated on the box — they must not live in source control.
+*.sq3
+*.sqlite
+*.sqlite3
+servers/*/addons/sourcemod/data/sqlite/
