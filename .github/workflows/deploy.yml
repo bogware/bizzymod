@@ -18,6 +18,7 @@ on:
           - campaign
           - vanilla
           - bizzymod
+          - zonemod
         # competitive gets added here once servers/competitive/ is populated.
         default: campaign
       environment:

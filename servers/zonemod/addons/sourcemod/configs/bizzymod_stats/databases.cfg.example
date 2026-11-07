@@ -1,0 +1,16 @@
+"Databases"
+{
+    "driver_default"  "mysql"
+
+    // Required entry name: the plugin looks up "bizzymod_stats" specifically.
+    "bizzymod_stats"
+    {
+        "driver"   "mysql"
+        "host"     "127.0.0.1"
+        "database" "bizzymod_stats"
+        "user"     "bizzymod_stats"
+        "pass"     "CHANGE-ME"
+        "port"     "3306"
+        "timeout"  "30"
+    }
+}

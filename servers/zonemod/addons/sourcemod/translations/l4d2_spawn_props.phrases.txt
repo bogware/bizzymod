@@ -1,0 +1,31 @@
+// l4d2_spawn_props translation phrases.
+// Plugin LoadTranslations()'s this file; missing it causes a fatal parse error
+// at OnPluginStart. Keys are the literal strings the plugin passes to %T.
+
+"Phrases"
+{
+    "You are not looking at a valid object"
+    {
+        "en"    "You are not looking at a valid object"
+    }
+    "Object Model"
+    {
+        "#format"   "{1:s},{2:s}"
+        "en"        "{1} ({2})"
+    }
+    "Object Targetname"
+    {
+        "#format"   "{1:s}"
+        "en"        "Targetname: {1}"
+    }
+    "Object Position"
+    {
+        "#format"   "{1:f},{2:f},{3:f}"
+        "en"        "Position: {1} {2} {3}"
+    }
+    "Object Angle"
+    {
+        "#format"   "{1:f},{2:f},{3:f}"
+        "en"        "Angle: {1} {2} {3}"
+    }
+}

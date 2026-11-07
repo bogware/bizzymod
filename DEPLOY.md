@@ -126,19 +126,21 @@ path has no dev Environments yet, so these were deployed **manually**: tar the r
 overlay → `pscp` to `/root` → on-box overlay script onto the existing zonemod base).
 It has **3.8 GB RAM / no swap**, so it runs **two** servers, not three.
 
-| | **Bizzy's Playhouse** | **Bizzy's Secret Sauce** |
+| | **Bizzy's Playhouse** | **Bizzy's ZoneMod** |
 |---|---|---|
-| overlay | `servers/bizzymod` (= Dugout) | `servers/vanilla` (= Flat's Hole) |
+| overlay | `servers/bizzymod` (= Dugout) | `servers/zonemod` (latest zonemod + essentials) |
 | srcds user / init | `bizzymod` / `srcdsBizzymod` | `campaign` / `srcdsCampaign` (reused) |
 | srcds port | `27015` | `27016` |
-| mode | versus (matchmode on) | vanilla |
-| **stats** | **ON** — self-registered `server_id=517` in the shared DB, distinct from Dugout (246) / Campaign (218) | **OFF** — `bizzymod_stats` load line commented in `flatshole.cfg` |
+| mode | versus (matchmode on) | zonemod — stock latest `master`, full matchmode |
+| **stats** | **ON** — self-registered `server_id=517` in the shared DB, distinct from Dugout (246) / Campaign (218) | **ON** — own self-registered `server_id` (distinct from Playhouse/Dugout/Campaign) |
 
 `server_id` is auto-assigned from the random per-install
 `addons/sourcemod/data/bizzymod_stats.server_key` (deleting it before first boot
-forces a fresh id — never copy another install's keyfile). Secret Sauce is a
-placeholder to customize later; when it diverges from vanilla, fork
-`servers/vanilla` → `servers/secretsauce` for its **own git lineage**.
+forces a fresh id — never copy another install's keyfile). **Bizzy's ZoneMod**
+(2026-11; the slot was "Secret Sauce"/vanilla) is the fleet's stock-latest-zonemod
+server: it lays SirPlease `master` (pinned via `servers/zonemod/deploy.env`
+`ZONEMOD_REF`, **not** the v1.0.0 release) plus the thin Bizzymod essentials
+(stats, lilac, SourceBans++, our admins) — full `confoglcompmod` matchmode intact.
 
 **Retired `_legacy`:** `bizzymoon` ("Moonmod") — stopped, de-croned, init →
 `srcdsBizzymoon.legacy`, home → `/home/bizzymoon_legacy`. The old `campaign`
