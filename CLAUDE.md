@@ -47,7 +47,7 @@ Deploys run on a **self-hosted Linux runner** (bogware org, labels `self-hosted`
 | `.deploy/` | No | Build/deploy helper scripts + server-side systemd/launch/bootstrap |
 | `guide/` | No | End-user "stand up your own L4D2 box" doc (not this repo's deploy) |
 | `legacy/`, `older-legacy/` | No | Parked historical content |
-| `CLAUDE.md` `DEPLOY.md` `README.md` `LICENSE` | No | Repo docs |
+| `CLAUDE.md` `README.md` `DEPLOY.md` `INSTALL.md` `LICENSE` | No | Repo docs (INSTALL.md = deploy-your-own guide) |
 
 Build-only dirs, created fresh by CI and never committed: `zonemod/` (SirPlease
 source checkout, for SourcePawn includes), `_zonemod_overlay/` (zonemod release
