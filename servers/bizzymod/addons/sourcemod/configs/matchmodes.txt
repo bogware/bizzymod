@@ -8,6 +8,7 @@
 		"numbersmod"  { "name" "numbersmod 6.9.420" }
 		"barrymod"    { "name" "barrymod 70.0.0" }
 		"barrymod2"   { "name" "barrymod2 (refined)" }
+		"barrymod2legacy" { "name" "barrymod2 legacy (vanilla maps)" }
 		"surfmod"     { "name" "surfmod 1.0" }
 		"spacemod"    { "name" "spacemod -1.0" }
 		"thundermod"  { "name" "ThunderMod 0.5" }
