@@ -1,5 +1,9 @@
 # servers/vanilla — "Flat's Hole" (public vanilla VERSUS)
 
+> **Decommissioned 2026-11-25.** Flat's Hole was stopped and its autostart removed; its
+> slot was replaced by [Bizzy's Moonland](../moonland/). This directory is kept
+> for reference and is not deployed.
+
 A public, vanilla Left 4 Dead 2 **Versus** server. Same zonemod base as campaign
 (for its stability/bug/crash fixes + anticheat), but **stripped to vanilla**: no
 gameplay plugins, matchmode quarantined, and every gameplay-changing fix disabled.
