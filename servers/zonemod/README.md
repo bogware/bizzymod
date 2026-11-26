@@ -1,5 +1,9 @@
 # servers/zonemod — Bizzy's ZoneMod
 
+> **Decommissioned 2026-11-25.** Bizzy's ZoneMod was stopped and its autostart removed; its
+> slot was replaced by [Bizzy's Moonland](../moonland/). This directory is kept
+> for reference and is not deployed.
+
 **Stock (latest) SirPlease zonemod + a thin Bizzymod essentials layer.**
 
 This server runs zonemod exactly as shipped — the full `confoglcompmod` matchmode

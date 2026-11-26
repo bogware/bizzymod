@@ -9,10 +9,14 @@ servers**. Each **game mode is a "server"** under `servers/<name>/`, and each
 server is **self-contained** — its overlay (cfg, plugins, scripts) is complete on
 its own; shared plugins are copied into each server rather than factored out.
 
-- `servers/campaign/` — the coop Campaign server (production-hardened; the first
-  and, for now, only fully-wired server).
-- `servers/competitive/`, `servers/vanilla/` — **scaffolds** (READMEs only, no
-  content yet).
+- `servers/campaign/` — the coop Campaign server (production-hardened).
+- `servers/bizzymod/` — Bizzy's Dugout, competitive realism-versus (confoglcompmod).
+- `servers/moonland/` — Bizzy's Moonland. An **upstream-overlay** server: content
+  comes from the public BizzyMoon repo at a pinned commit; this dir holds only
+  local overrides. Built by `.deploy/moonland/build.sh`, NOT by `deploy.yml`.
+- `servers/vanilla/` (Flat's Hole), `servers/zonemod/` (Bizzy's ZoneMod) —
+  **decommissioned 2026-11-25**; kept for reference, not running.
+- `servers/competitive/` — scaffold (README only).
 
 There is no application code to build in the conventional sense: "working on the
 repo" is editing CFG / VScript / Stripper files and occasionally rebuilding a
@@ -128,6 +132,22 @@ tarball), the SourcePawn compiler (via `rumblefrog/setup-sp`).
 - **Line endings** — `.gitattributes` enforces LF; CRLF leaking to the box breaks
   shell scripts (`bad interpreter: /bin/sh^M`).
 - **`screen -r L4D2_Server1`** — detach with **Ctrl+A then D** (Ctrl+C kills srcds).
+  To send a console command without attaching:
+  `su <user> -c "screen -S L4D2_Server1 -p 0 -X stuff 'cmd^M'"`.
+- **`kern.log` segfaults are not crashes (usually).** `sm_RestartEmpty`
+  (`sm_restart_empty_method 2`) restarts an empty server by running `crash`; each
+  restart logs a segfault at `engine_srv.so` `crash(CCommand const&)` and a line in
+  `addons/sourcemod/logs/restart.log`. Mass disconnects before one of these are
+  usually a passed `ReturnToLobby` vote, not a fault. Don't switch to method 1:
+  `_restart` exits srcds and `srcds_run` does not respawn it.
+- **Each server must own `cfg/server.cfg`.** zonemod's stock `server.cfg` has
+  `hostname "My Cool Server"` and a public default `rcon_password`, and the engine
+  can exec it after `server1.cfg`. Servers on the zonemod base carry an override
+  without them; the real password lives only in `server1.cfg` (`#{RCON_Pass}#`).
+- **Moonland gotchas:** don't drop Valve's stock loose cfgs (`valve.rc` runs
+  `stuffcmds`, which executes the `+` launch args); boot with
+  `+servercfgfile exec.cfg`; BizzyMoon can't be checked out on Windows
+  (`cfg/con.cfg` is a reserved name) — inspect it on Linux.
 - **Secrets never go in the conversation/tool-command lines** — auth out-of-band or
   have the user run credentialed commands (see the memory of the same name).
 

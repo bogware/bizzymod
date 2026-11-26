@@ -45,9 +45,10 @@ Hostnames and matchmaking identity are applied at deploy time.
 |---|---|---|
 | **Bizzy's Dugout** — `servers/bizzymod/` | Realism-Versus (competitive) | The flagship. Full [`confoglcompmod`](https://github.com/SirPlease/L4D2-Competitive-Rework) matchmode — `!match` to vote among the full ruleset library. |
 | **Campaign** — `servers/campaign/` | Co-op (Expert) | Hardened coop workhorse. Single pinned plugin set, 100-tick, no matchmode framework. |
-| **Flat's Hole** — `servers/vanilla/` | Public Versus | Open, vanilla-feel versus on the zonemod base. |
-| **Bizzy's ZoneMod** — `servers/zonemod/` | ZoneMod (latest) | Stock SirPlease zonemod plus a thin Bizzymod essentials layer. |
+| **Bizzy's Moonland** — `servers/moonland/` | Realism playmodes | Moon's [BizzyMoon](https://github.com/MoonL4D2/BizzyMoon) modes (Moon Mod, numbersmod, bizzymod), 60-tick. Built from that upstream repo at a pinned commit; this repo holds only the local overrides. |
 | **competitive** — `servers/competitive/` | — | Reserved scaffold. Nothing deploys from it yet. |
+| ~~Flat's Hole~~ — `servers/vanilla/` | Public Versus | **Decommissioned 2026-11-25.** Kept for reference; not running. |
+| ~~Bizzy's ZoneMod~~ — `servers/zonemod/` | ZoneMod (latest) | **Decommissioned 2026-11-25.** Kept for reference; not running. |
 
 Every server runs in **two live environments**, `prod` and `dev`, that look identical
 to players. See [Environments](#environments).
@@ -58,6 +59,14 @@ to players. See [Environments](#environments).
 
 A short log of notable changes for operators following the project.
 
+- **2026-11 (late)** — Added **Bizzy's Moonland**, built from the BizzyMoon repo with a
+  repeatable manual build (`.deploy/moonland/build.sh`). Retired **Flat's Hole** and
+  **Bizzy's ZoneMod**. RCON hardening across the fleet: brute-force bans
+  (`sv_rcon_*`) in `server1.cfg`, and every server now owns its `server.cfg` so the
+  zonemod stock file (default hostname and a public default RCON password) can no
+  longer override the real settings. Restart-on-empty grace raised from 1 s to 30 s.
+  Diagnosed the long-running "segfaults": they are planned restarts, not crashes
+  (see Conventions).
 - **2026-11** — Added **Bizzy's ZoneMod** (stock latest zonemod + essentials). Elevated
   the documentation set (`README`, agent-followable `INSTALL.md`) and completed a
   pre-public infrastructure pass (generic hosts, stale references removed).
@@ -198,6 +207,14 @@ and a verification checklist.
   the runtime ships, or ABI drift silently corrupts plugin behavior.
 - **Line endings stay LF** (enforced by `.gitattributes`). CRLF on the host breaks
   shell scripts.
+- **"Segfaults" in `kern.log` are usually planned restarts.** `sm_RestartEmpty`
+  restarts an empty server by running the engine's `crash` command, so `srcds_run`
+  respawns it. Each one shows up as a segfault in `engine_srv.so` (`crash()`), and
+  is listed in `addons/sourcemod/logs/restart.log`. `_restart` does not work as an
+  alternative: srcds exits and is not respawned.
+- **Every server owns its `cfg/server.cfg`.** zonemod's stock file sets the default
+  hostname and a public default `rcon_password`, and the engine can run it after
+  `server1.cfg`. Each server's overlay replaces it with a copy that has neither.
 
 The complete conventions, for people and for automation, are in [`CLAUDE.md`](CLAUDE.md).
 
